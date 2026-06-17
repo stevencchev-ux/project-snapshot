@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Labor Entry</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f3; min-height: 100vh; padding: 2rem 1rem; color: #1a1a1a; }
+  .container { max-width: 640px; margin: 0 auto; }
+  h1 { font-size: 18px; font-weight: 500; margin-bottom: 4px; }
+  .today { font-size: 13px; color: #888; margin-bottom: 1.5rem; }
+  input.today { background: transparent; border: none; outline: none; cursor: pointer; font-family: inherit; padding: 0; border-bottom: 1px dashed #ccc; }
+  input.today:hover, input.today:focus { color: #1a1a1a; border-bottom-color: #888; }
+  .card { background: #fff; border: 1px solid #e8e8e6; border-radius: 12px; overflow: hidden; margin-bottom: 1.25rem; }
+  .grid-head { display: grid; grid-template-columns: 150px 1fr 110px 32px; background: #fafaf8; border-bottom: 1px solid #e8e8e6; }
+  .grid-row { display: grid; grid-template-columns: 150px 1fr 110px 32px; border-top: 1px solid #e8e8e6; }
+  .cell { padding: 10px 14px; display: flex; align-items: center; }
+  .cell.head { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: #aaa; padding: 8px 14px; }
+  .name-cell { font-size: 14px; font-weight: 500; color: #1a1a1a; }
+  .loc-cell select { width: 100%; font-size: 13px; background: transparent; border: none; color: #1a1a1a; padding: 0; cursor: pointer; outline: none; }
+  .shift-cell { justify-content: flex-start; }
+  .seg { display: inline-flex; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; }
+  .seg button { font-size: 12px; font-weight: 500; padding: 4px 12px; border: none; background: transparent; cursor: pointer; color: #aaa; line-height: 1; }
+  .seg button.on-full { background: #1D9E75; color: #fff; }
+  .seg button.on-half { background: #f0f0ee; color: #1a1a1a; }
+  .seg button:not(.on-full):not(.on-half):hover { background: #f5f5f3; }
+  .del-cell { justify-content: center; }
+  .del-btn { background: none; border: none; cursor: pointer; color: #ccc; font-size: 16px; line-height: 1; padding: 0; }
+  .del-btn:hover { color: #e24b4a; }
+  .add-row { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid #e8e8e6; cursor: pointer; color: #888; font-size: 13px; background: none; width: 100%; border-left: none; border-right: none; border-bottom: none; }
+  .add-row:hover { background: #fafaf8; color: #1a1a1a; }
+  .extra-name { font-size: 14px; font-weight: 500; background: transparent; border: none; outline: none; color: #1a1a1a; width: 100%; }
+  .extra-name::placeholder { color: #bbb; font-weight: 400; }
+  .extra-rate { font-size: 12px; background: transparent; border: none; outline: none; color: #aaa; width: 100%; margin-top: 2px; }
+  .extra-rate::placeholder { color: #ccc; }
+  .footer { display: flex; align-items: center; justify-content: space-between; padding: 0.25rem 0; }
+  .total-block { font-size: 13px; color: #888; }
+  .total-block span { font-size: 22px; font-weight: 500; color: #1a1a1a; display: block; margin-top: 2px; }
+  .submit-btn { background: #1D9E75; color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; padding: 10px 26px; cursor: pointer; }
+  .submit-btn:hover { background: #0F6E56; }
+  .status { font-size: 12px; padding: 8px 14px; border-radius: 8px; margin-top: 10px; display: none; }
+  .status.success { background: #E1F5EE; color: #0F6E56; display: block; }
+  .status.error { background: #FCEBEB; color: #A32D2D; display: block; }
+  .status.warning { background: #FAEEDA; color: #854F0B; display: block; }
+
+  /* Modal */
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center; z-index: 100; }
+  .modal { background: #fff; border-radius: 12px; padding: 1.5rem; max-width: 380px; width: 90%; }
+  .modal h2 { font-size: 15px; font-weight: 500; margin-bottom: 8px; }
+  .modal p { font-size: 13px; color: #666; margin-bottom: 1.25rem; line-height: 1.5; }
+  .modal-btns { display: flex; gap: 8px; justify-content: flex-end; }
+  .modal-btns button { font-size: 13px; font-weight: 500; padding: 7px 16px; border-radius: 8px; cursor: pointer; border: 1px solid #ddd; background: #fff; color: #1a1a1a; }
+  .modal-btns .btn-primary { background: #1D9E75; color: #fff; border-color: #1D9E75; }
+  .modal-btns .btn-primary:hover { background: #0F6E56; }
+  .modal-btns button:not(.btn-primary):hover { background: #f5f5f3; }
+
+  /* Log section */
+  .log-card { background: #fff; border: 1px solid #e8e8e6; border-radius: 12px; overflow: hidden; }
+  .log-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid #e8e8e6; background: #fafaf8; }
+  .log-title { font-size: 13px; font-weight: 500; color: #1a1a1a; }
+  .export-btn { font-size: 12px; color: #888; background: none; border: 1px solid #ddd; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  .export-btn:hover { background: #f5f5f3; }
+  .log-empty { font-size: 13px; color: #bbb; padding: 16px 14px; }
+
+  /* Accordion */
+  .day-summary { display: flex; align-items: center; justify-content: space-between; padding: 11px 14px; border-top: 1px solid #e8e8e6; cursor: pointer; user-select: none; }
+  .day-summary:hover { background: #fafaf8; }
+  .day-left { display: flex; align-items: center; gap: 10px; }
+  .day-date { font-size: 13px; font-weight: 500; color: #1a1a1a; }
+  .day-meta { font-size: 12px; color: #999; }
+  .day-right { display: flex; align-items: center; gap: 12px; }
+  .day-total { font-size: 13px; font-weight: 500; color: #1a1a1a; }
+  .chevron { font-size: 12px; color: #bbb; transition: transform 0.18s; display: inline-block; }
+  .chevron.open { transform: rotate(180deg); }
+  .day-detail { display: none; background: #fafaf8; border-top: 1px solid #e8e8e6; }
+  .day-detail.open { display: block; }
+  .detail-head { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #bbb; padding: 6px 14px 5px 24px; display: grid; grid-template-columns: 1fr 110px 55px 65px; border-bottom: 1px solid #eee; }
+
+  /* Swipeable rows */
+  .swipe-wrap { position: relative; overflow: hidden; border-top: 1px solid #f0f0ee; }
+  .swipe-wrap:first-of-type { border-top: none; }
+  .action-btns { position: absolute; right: 0; top: 0; bottom: 0; display: flex; width: 144px; }
+  .action-btns button { flex: 1; border: none; cursor: pointer; font-size: 12px; font-weight: 500; color: #fff; }
+  .btn-edit { background: #378ADD; }
+  .btn-del  { background: #e24b4a; }
+  .detail-row { display: grid; grid-template-columns: 1fr 110px 55px 65px; font-size: 12px; padding: 9px 14px 9px 24px; color: #555; background: #fafaf8; transition: transform 0.22s ease; will-change: transform; }
+  .detail-row.swiped { transform: translateX(-144px); }
+  /* inline edit mode */
+  .detail-row.edit-mode { background: #fff; grid-template-columns: 1fr 110px 55px 80px; gap: 6px; align-items: center; padding: 6px 10px 6px 24px; }
+  .detail-row.edit-mode input,
+  .detail-row.edit-mode select { font-size: 12px; background: #fff; border: 1px solid #ddd; border-radius: 5px; padding: 3px 6px; color: #1a1a1a; width: 100%; outline: none; }
+  .save-btn { font-size: 11px; font-weight: 500; background: #1D9E75; color: #fff; border: none; border-radius: 5px; padding: 4px 9px; cursor: pointer; white-space: nowrap; width: 100%; }
+  .save-btn:hover { background: #0F6E56; }
+  /* add worker inside detail */
+  .detail-add { display: flex; align-items: center; gap: 6px; padding: 8px 14px 8px 24px; font-size: 12px; color: #888; background: none; width: 100%; border: none; border-top: 1px solid #eee; cursor: pointer; }
+  .detail-add:hover { background: #f0f0ee; color: #1a1a1a; }
+  /* add-worker inline form */
+  .inline-add-row { display: grid; grid-template-columns: 1fr 110px 55px 65px; gap: 6px; align-items: center; padding: 6px 10px 6px 24px; background: #fff; border-top: 1px solid #eee; }
+  .inline-add-row input,
+  .inline-add-row select { font-size: 12px; background: #fff; border: 1px solid #ddd; border-radius: 5px; padding: 3px 6px; color: #1a1a1a; width: 100%; outline: none; }
+  .inline-add-row .save-btn { font-size: 11px; }
+  /* Notes field */
+  .notes-wrap { margin-bottom: 1.25rem; }
+  .notes-row { display: flex; align-items: flex-start; gap: 8px; background: #fff; border: 1px solid #e8e8e6; border-radius: 12px; padding: 10px 14px; }
+  .notes-row textarea { flex: 1; font-family: inherit; font-size: 13px; color: #1a1a1a; background: transparent; border: none; outline: none; resize: none; min-height: 38px; line-height: 1.5; }
+  .notes-row textarea::placeholder { color: #bbb; }
+  .mic-btn { flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%; border: 1px solid #e8e8e6; background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: background 0.15s, border-color 0.15s; }
+  .mic-btn:hover { background: #f5f5f3; border-color: #ccc; }
+  .mic-btn.listening { background: #FCEBEB; border-color: #e24b4a; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(226,75,74,0.3); } 50% { box-shadow: 0 0 0 5px rgba(226,75,74,0); } }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Labor entry</h1>
+  <input type="date" class="today" id="today-date" />
+
+  <div class="card">
+    <div class="grid-head">
+      <div class="cell head">Worker</div>
+      <div class="cell head">Location</div>
+      <div class="cell head">Day</div>
+      <div class="cell head"></div>
+    </div>
+    <div id="crew-rows"></div>
+    <button class="add-row" onclick="addExtra()">+ Add worker</button>
+  </div>
+
+  <div class="footer">
+    <div class="total-block">Est. daily labor<span id="grand-total">$0</span></div>
+    <button class="submit-btn" onclick="submitLog()">Save log</button>
+  </div>
+  <div class="status" id="status-msg"></div>
+
+  <div class="notes-wrap">
+    <div class="notes-row">
+      <textarea id="notes-field" placeholder="Notes for this day… (or tap mic to speak)" rows="2"></textarea>
+      <button class="mic-btn" id="mic-btn" onclick="toggleMic()" title="Voice note">🎙</button>
+    </div>
+  </div>
+
+  <div class="log-card" style="margin-top:2rem">
+    <div class="log-header">
+      <span class="log-title">Saved entries</span>
+      <button class="export-btn" onclick="exportCSV()">Export CSV</button>
+    </div>
+    <div id="log-list"></div>
+    <div id="log-empty" class="log-empty">No entries yet.</div>
+  </div>
+</div>
+
+<!-- Duplicate modal -->
+<div class="modal-bg" id="dup-modal" style="display:none">
+  <div class="modal">
+    <h2>Entry already exists</h2>
+    <p id="dup-modal-msg"></p>
+    <div class="modal-btns">
+      <button onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" onclick="confirmOverwrite()">Overwrite</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const CREW = [
+  { name: 'David G', rate: 300 },
+  { name: 'Ernesto', rate: 300 },
+  { name: 'Rami',    rate: 260 },
+  { name: 'Jose',    rate: 400 },
+];
+const PROJECTS = [
+  '8294 E Carburton',
+  '1524 W 223rd',
+  'Ivy Park Fullerton',
+  'Ivy Park Tustin',
+  'Unspecified',
+];
+
+const today = new Date();
+const todayInput = document.getElementById('today-date');
+todayInput.value = today.toISOString().split('T')[0];
+function getDateStr() { return todayInput.value || today.toISOString().split('T')[0]; }
+
+const state = {};
+let extraCount = 0;
+let pendingEntries = null;
+
+// Migrate old array format
+(function migrateLog() {
+  try {
+    const raw = localStorage.getItem('laborLog');
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      const m = {};
+      parsed.forEach(e => { if (!e.date) return; if (!m[e.date]) m[e.date] = []; m[e.date].push(e); });
+      localStorage.setItem('laborLog', JSON.stringify(m));
+    }
+  } catch(e) { localStorage.removeItem('laborLog'); }
+})();
+
+function getLog() { try { return JSON.parse(localStorage.getItem('laborLog') || '{}'); } catch(e) { return {}; } }
+function saveLog(log) { localStorage.setItem('laborLog', JSON.stringify(log)); }
+function projectOptions(sel) { return PROJECTS.map(p => `<option value="${p}"${sel===p?' selected':''}>${p}</option>`).join(''); }
+
+// ── Entry form ──────────────────────────────────────────────
+
+function makeSegment(id) {
+  const wrap = document.createElement('div');
+  wrap.className = 'seg'; wrap.id = 'seg-' + id;
+  const full = document.createElement('button');
+  full.textContent = 'Full'; full.className = 'on-full';
+  full.onclick = () => setShift(id, 'full');
+  const half = document.createElement('button');
+  half.textContent = 'Half';
+  half.onclick = () => setShift(id, 'half');
+  wrap.appendChild(full); wrap.appendChild(half);
+  return wrap;
+}
+
+function setShift(id, shift) {
+  // clicking active button deselects it (= off/not working)
+  state[id].shift = state[id].shift === shift ? null : shift;
+  const seg = document.getElementById('seg-' + id);
+  seg.children[0].className = state[id].shift === 'full' ? 'on-full' : '';
+  seg.children[1].className = state[id].shift === 'half' ? 'on-half' : '';
+  updateTotal();
+}
+
+function buildCrewRow(worker, id) {
+  state[id] = { name: worker.name, rate: worker.rate, location: PROJECTS[0], shift: 'full' };
+  const row = document.createElement('div'); row.className = 'grid-row';
+  const nameCell = document.createElement('div'); nameCell.className = 'cell name-cell'; nameCell.textContent = worker.name;
+  const locCell = document.createElement('div'); locCell.className = 'cell loc-cell';
+  const sel = document.createElement('select'); sel.innerHTML = projectOptions(PROJECTS[0]);
+  sel.addEventListener('change', e => { state[id].location = e.target.value; updateTotal(); });
+  locCell.appendChild(sel);
+  const shiftCell = document.createElement('div'); shiftCell.className = 'cell shift-cell'; shiftCell.appendChild(makeSegment(id));
+  const delCell = document.createElement('div'); delCell.className = 'cell del-cell';
+  row.appendChild(nameCell); row.appendChild(locCell); row.appendChild(shiftCell); row.appendChild(delCell);
+  return row;
+}
+
+function addExtra() {
+  const id = 'extra' + extraCount++;
+  state[id] = { name: '', rate: 0, location: PROJECTS[0], shift: 'full' };
+  const row = document.createElement('div'); row.className = 'grid-row';
+  const nameCell = document.createElement('div'); nameCell.className = 'cell name-cell';
+  nameCell.style.cssText = 'flex-direction:column;align-items:flex-start;gap:2px;';
+  const nameInp = document.createElement('input'); nameInp.className = 'extra-name'; nameInp.placeholder = 'Name';
+  nameInp.addEventListener('input', e => { state[id].name = e.target.value.trim(); updateTotal(); });
+  const rateInp = document.createElement('input'); rateInp.className = 'extra-rate'; rateInp.type = 'number'; rateInp.placeholder = 'Day rate';
+  rateInp.addEventListener('input', e => { state[id].rate = parseFloat(e.target.value) || 0; updateTotal(); });
+  nameCell.appendChild(nameInp); nameCell.appendChild(rateInp);
+  const locCell = document.createElement('div'); locCell.className = 'cell loc-cell';
+  const sel = document.createElement('select'); sel.innerHTML = projectOptions(PROJECTS[0]);
+  sel.addEventListener('change', e => { state[id].location = e.target.value; updateTotal(); });
+  locCell.appendChild(sel);
+  const shiftCell = document.createElement('div'); shiftCell.className = 'cell shift-cell'; shiftCell.appendChild(makeSegment(id));
+  const delCell = document.createElement('div'); delCell.className = 'cell del-cell';
+  const delBtn = document.createElement('button'); delBtn.className = 'del-btn'; delBtn.textContent = '×';
+  delBtn.onclick = () => { row.remove(); delete state[id]; updateTotal(); };
+  delCell.appendChild(delBtn);
+  row.appendChild(nameCell); row.appendChild(locCell); row.appendChild(shiftCell); row.appendChild(delCell);
+  document.getElementById('crew-rows').appendChild(row);
+  nameInp.focus();
+}
+
+function updateTotal() {
+  let total = 0;
+  Object.values(state).forEach(w => {
+    if (!w.rate || !w.location || !w.shift) return;
+    total += w.shift === 'full' ? w.rate : w.rate / 2;
+  });
+  document.getElementById('grand-total').textContent = '$' + total.toLocaleString('en-US');
+}
+
+function submitLog() {
+  const entries = Object.values(state).filter(w => w.name && w.location && w.shift);
+  const s = document.getElementById('status-msg');
+  if (!entries.length) { s.className = 'status error'; s.textContent = 'No workers ready to log.'; return; }
+  const log = getLog();
+  const existing = Array.isArray(log[getDateStr()]) ? log[getDateStr()] : [];
+  if (existing.length > 0) {
+    pendingEntries = entries;
+    const total = existing.reduce((sum, e) => sum + (e.pay || 0), 0);
+    document.getElementById('dup-modal-msg').textContent =
+      `A log for today already has ${existing.length} entr${existing.length > 1 ? 'ies' : 'y'} totalling $${total.toLocaleString()}. Overwrite with the current form?`;
+    document.getElementById('dup-modal').style.display = 'flex';
+    return;
+  }
+  saveEntries(entries, log);
+}
+
+function closeModal() { document.getElementById('dup-modal').style.display = 'none'; pendingEntries = null; }
+function confirmOverwrite() { const log = getLog(); closeModal(); saveEntries(pendingEntries, log); }
+
+function saveEntries(entries, log) {
+  const notesVal = document.getElementById('notes-field').value.trim();
+  log[getDateStr()] = entries.map(w => ({
+    date: getDateStr(), name: w.name, location: w.location, shift: w.shift,
+    hours: w.shift === 'full' ? 8 : 4, pay: w.shift === 'full' ? w.rate : w.rate / 2,
+    rate: w.rate, notes: notesVal
+  }));
+  saveLog(log);
+  const total = entries.reduce((sum, w) => sum + (w.shift === 'full' ? w.rate : w.rate / 2), 0);
+  const s = document.getElementById('status-msg');
+  s.className = 'status success';
+  s.textContent = `Saved ${entries.length} entr${entries.length > 1 ? 'ies' : 'y'} — $${total.toLocaleString()} for ${getDateStr()}.`;
+  renderLog();
+}
+
+// ── Log accordion ───────────────────────────────────────────
+
+function toggleDay(safeKey) {
+  const detail = document.getElementById('detail-' + safeKey);
+  const chevron = document.getElementById('chev-' + safeKey);
+  const open = detail.classList.toggle('open');
+  chevron.classList.toggle('open', open);
+}
+
+function renderLog() {
+  const log = getLog();
+  const list = document.getElementById('log-list');
+  const empty = document.getElementById('log-empty');
+  if (!list || !empty) return;
+  const dates = Object.keys(log).sort((a,b) => b.localeCompare(a));
+  if (!dates.length) { list.innerHTML = ''; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+
+  list.innerHTML = dates.map(d => {
+    const entries = Array.isArray(log[d]) ? log[d] : [];
+    if (!entries.length) return '';
+    const total = entries.reduce((s, e) => s + (e.pay || 0), 0);
+    const label = new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+    const safeKey = d.replace(/-/g, '');
+    return `
+      <div>
+        <div class="day-summary" onclick="toggleDay('${safeKey}')">
+          <div class="day-left">
+            <span class="day-date">${label}</span>
+            <span class="day-meta">${entries.length} worker${entries.length > 1 ? 's' : ''}</span>
+          </div>
+          <div class="day-right">
+            <span class="day-total">$${total.toLocaleString()}</span>
+            <span class="chevron" id="chev-${safeKey}">▾</span>
+          </div>
+        </div>
+        <div class="day-detail" id="detail-${safeKey}">
+          <div class="detail-head"><span>Worker</span><span>Location</span><span>Day</span><span>Pay</span></div>
+          <div id="rows-${safeKey}"></div>
+          <button class="detail-add" onclick="showInlineAdd('${d}','${safeKey}')">+ Add worker</button>
+          " + (entries[0] && entries[0].notes ? "<div style='font-size:12px;color:#888;padding:7px 14px 8px 24px;border-top:1px solid #eee;font-style:italic;'>" + entries[0].notes + "</div>" : "") + "
+        </div>
+      </div>`;
+  }).join('');
+
+  // populate swipeable rows after HTML is in DOM
+  dates.forEach(d => {
+    const entries = Array.isArray(log[d]) ? log[d] : [];
+    const safeKey = d.replace(/-/g, '');
+    const container = document.getElementById('rows-' + safeKey);
+    if (!container) return;
+    entries.forEach((e, idx) => {
+      container.appendChild(makeSwipeRow(e, d, idx));
+    });
+  });
+}
+
+function makeSwipeRow(e, dateKey, idx) {
+  const wrap = document.createElement('div');
+  wrap.className = 'swipe-wrap';
+
+  // action buttons behind the row
+  const actions = document.createElement('div');
+  actions.className = 'action-btns';
+  const editBtn = document.createElement('button');
+  editBtn.className = 'btn-edit'; editBtn.textContent = 'Edit';
+  editBtn.onclick = () => activateEdit(wrap, dateKey, idx);
+  const delBtn = document.createElement('button');
+  delBtn.className = 'btn-del'; delBtn.textContent = 'Delete';
+  delBtn.onclick = () => deleteEntry(dateKey, idx);
+  actions.appendChild(editBtn); actions.appendChild(delBtn);
+
+  // the visible row
+  const row = document.createElement('div');
+  row.className = 'detail-row';
+  row.innerHTML = `<span>${e.name}</span><span>${e.location}</span><span>${e.shift === 'full' ? 'Full' : 'Half'}</span><span>$${(e.pay||0).toLocaleString()}</span>`;
+
+  // touch / mouse swipe
+  let startX = 0, currentX = 0, swiped = false;
+
+  function onStart(clientX) { startX = clientX; currentX = clientX; }
+  function onMove(clientX) {
+    const dx = clientX - startX;
+    if (swiped) {
+      const newX = -144 + Math.max(0, Math.min(144, dx));
+      row.style.transform = `translateX(${newX}px)`;
+    } else {
+      if (dx < -10) { row.style.transition = 'none'; row.style.transform = `translateX(${Math.max(-144, dx)}px)`; }
+    }
+  }
+  function onEnd(clientX) {
+    const dx = clientX - startX;
+    row.style.transition = 'transform 0.22s ease';
+    if (!swiped && dx < -50) { row.style.transform = 'translateX(-144px)'; swiped = true; }
+    else if (swiped && dx > 50) { row.style.transform = 'translateX(0)'; swiped = false; }
+    else { row.style.transform = swiped ? 'translateX(-144px)' : 'translateX(0)'; }
+  }
+
+  row.addEventListener('touchstart', e => onStart(e.touches[0].clientX), { passive: true });
+  row.addEventListener('touchmove',  e => onMove(e.touches[0].clientX),  { passive: true });
+  row.addEventListener('touchend',   e => onEnd(e.changedTouches[0].clientX));
+
+  let mouseDown = false;
+  row.addEventListener('mousedown', e => { mouseDown = true; onStart(e.clientX); row.style.transition = 'none'; });
+  window.addEventListener('mousemove', e => { if (mouseDown) onMove(e.clientX); });
+  window.addEventListener('mouseup',   e => { if (mouseDown) { mouseDown = false; onEnd(e.clientX); } });
+
+  wrap.appendChild(actions);
+  wrap.appendChild(row);
+  return wrap;
+}
+
+function activateEdit(wrap, dateKey, idx) {
+  const log = getLog();
+  const e = log[dateKey][idx];
+  const safeKey = dateKey.replace(/-/g, '');
+
+  // reset swipe
+  const row = wrap.querySelector('.detail-row');
+  row.style.transform = 'translateX(0)';
+  row.className = 'detail-row edit-mode';
+
+  const rate = e.rate || (e.shift === 'full' ? e.pay : e.pay * 2);
+
+  row.innerHTML = `
+    <input id="ei-name-${safeKey}-${idx}" value="${e.name}" placeholder="Name" />
+    <select id="ei-loc-${safeKey}-${idx}">${projectOptions(e.location)}</select>
+    <select id="ei-shift-${safeKey}-${idx}">
+      <option value="full"${e.shift==='full'?' selected':''}>Full</option>
+      <option value="half"${e.shift==='half'?' selected':''}>Half</option>
+      <option value="off"${e.shift==='off'?' selected':''}>Off</option>
+    </select>
+    <button class="save-btn" onclick="saveEdit('${dateKey}',${idx},${rate})">Save</button>`;
+  row.querySelector(`#ei-name-${safeKey}-${idx}`).focus();
+}
+
+function saveEdit(dateKey, idx, rate) {
+  const safeKey = dateKey.replace(/-/g, '');
+  const name  = document.getElementById(`ei-name-${safeKey}-${idx}`).value.trim();
+  const loc   = document.getElementById(`ei-loc-${safeKey}-${idx}`).value;
+  const shift = document.getElementById(`ei-shift-${safeKey}-${idx}`).value;
+  if (!name || !loc) return;
+  const log = getLog();
+  log[dateKey][idx] = { date: dateKey, name, location: loc, shift, hours: shift === 'full' ? 8 : 4, pay: shift === 'full' ? rate : rate / 2, rate };
+  saveLog(log);
+  renderLog();
+  // re-open the accordion
+  const detail = document.getElementById('detail-' + safeKey);
+  const chevron = document.getElementById('chev-' + safeKey);
+  if (detail) { detail.classList.add('open'); chevron && chevron.classList.add('open'); }
+}
+
+function deleteEntry(dateKey, idx) {
+  const log = getLog();
+  log[dateKey].splice(idx, 1);
+  if (!log[dateKey].length) delete log[dateKey];
+  saveLog(log);
+  renderLog();
+  // re-open if day still exists
+  const safeKey = dateKey.replace(/-/g, '');
+  const detail = document.getElementById('detail-' + safeKey);
+  const chevron = document.getElementById('chev-' + safeKey);
+  if (detail) { detail.classList.add('open'); chevron && chevron.classList.add('open'); }
+}
+
+function showInlineAdd(dateKey, safeKey) {
+  // remove existing inline add if any
+  const existing = document.getElementById('inline-add-' + safeKey);
+  if (existing) { existing.remove(); return; }
+
+  const addBtn = document.querySelector(`#detail-${safeKey} .detail-add`);
+  const form = document.createElement('div');
+  form.className = 'inline-add-row'; form.id = 'inline-add-' + safeKey;
+  form.innerHTML = `
+    <input id="ia-name-${safeKey}" placeholder="Name" />
+    <select id="ia-loc-${safeKey}">${projectOptions(PROJECTS[0])}</select>
+    <select id="ia-shift-${safeKey}"><option value="full">Full</option><option value="half">Half</option></select>
+    <button class="save-btn" onclick="saveInlineAdd('${dateKey}','${safeKey}')">Add</button>`;
+  addBtn.parentNode.insertBefore(form, addBtn);
+  form.querySelector(`#ia-name-${safeKey}`).focus();
+}
+
+function saveInlineAdd(dateKey, safeKey) {
+  const name  = document.getElementById('ia-name-' + safeKey).value.trim();
+  const loc   = document.getElementById('ia-loc-' + safeKey).value;
+  const shift = document.getElementById('ia-shift-' + safeKey).value;
+  if (!name || !loc) return;
+
+  // try to find rate from CREW
+  const crewMatch = CREW.find(c => c.name.toLowerCase() === name.toLowerCase());
+  const rate = crewMatch ? crewMatch.rate : 0;
+  const pay = shift === 'full' ? rate : rate / 2;
+
+  const log = getLog();
+  if (!log[dateKey]) log[dateKey] = [];
+  log[dateKey].push({ date: dateKey, name, location: loc, shift, hours: shift === 'full' ? 8 : 4, pay, rate });
+  saveLog(log);
+  renderLog();
+  const detail = document.getElementById('detail-' + safeKey);
+  const chevron = document.getElementById('chev-' + safeKey);
+  if (detail) { detail.classList.add('open'); chevron && chevron.classList.add('open'); }
+}
+
+function exportCSV() {
+  const log = getLog();
+  const all = Object.values(log).flat();
+  if (!all.length) return;
+  const headers = ['Date','Worker','Location','Shift','Hours','Pay'];
+  const rows = all.map(e => [e.date, e.name, e.location, e.shift, e.hours, e.pay]);
+  const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+  a.download = 'labor-log.csv'; a.click();
+}
+
+// ── Voice notes ─────────────────────────────────────────────
+let recognition = null;
+let listening = false;
+
+function toggleMic() {
+  var btn = document.getElementById('mic-btn');
+  var field = document.getElementById('notes-field');
+  var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    field.placeholder = 'Speech not supported. Use Chrome or Safari over HTTPS.';
+    return;
+  }
+  if (location.protocol === 'file:') {
+    field.placeholder = 'Mic needs HTTPS. Host on GitHub Pages to use voice notes.';
+    return;
+  }
+  if (listening) {
+    if (recognition) recognition.stop();
+    return;
+  }
+  recognition = new SpeechRecognition();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.lang = 'en-US';
+  var interim = '';
+  var base = field.value;
+  recognition.onstart = function() {
+    listening = true;
+    btn.classList.add('listening');
+    btn.textContent = '\u23F9';
+    btn.title = 'Tap to stop';
+    if (base && base[base.length - 1] !== ' ') base += ' ';
+  };
+  recognition.onresult = function(evt) {
+    interim = '';
+    for (var i = evt.resultIndex; i < evt.results.length; i++) {
+      if (evt.results[i].isFinal) { base += evt.results[i][0].transcript + ' '; }
+      else { interim = evt.results[i][0].transcript; }
+    }
+    field.value = (base + interim).trim();
+  };
+  recognition.onend = function() {
+    listening = false;
+    btn.classList.remove('listening');
+    btn.textContent = '\uD83C\uDF99';
+    btn.title = 'Voice note';
+    field.value = base.trim();
+  };
+  recognition.onerror = function(evt) {
+    listening = false;
+    btn.classList.remove('listening');
+    btn.textContent = '\uD83C\uDF99';
+    btn.title = 'Voice note';
+    if (evt.error === 'not-allowed') {
+      field.placeholder = 'Mic access denied - allow mic access in browser settings';
+    } else if (evt.error !== 'aborted') {
+      field.placeholder = 'Mic error: ' + evt.error;
+    }
+  };
+  recognition.start();
+}
+
+CREW.forEach((w, i) => document.getElementById('crew-rows').appendChild(buildCrewRow(w, 'c' + i)));
+updateTotal();
+renderLog();
+</script>
+</body>
+</html>

@@ -194,12 +194,12 @@
     <h3>&#9881; Admin Mode</h3>
 
     <div class="admin-section">
-      <div class="admin-section-title">Azure Function URL</div>
+      <div class="admin-section-title">Power Automate URL</div>
       <div class="admin-url-row">
-        <input class="admin-url-input" id="azure-url-input" type="url" placeholder="https://your-function.azurewebsites.net/api/laborentry" />
+        <input class="admin-url-input" id="azure-url-input" type="url" placeholder="https://prod-xx.westus.logic.azure.com:443/workflows/..." />
         <button class="admin-save-btn" onclick="saveAzureUrl()">Save</button>
       </div>
-      <div class="admin-hint">Paste your Azure Function HTTP trigger URL here. The form will POST to this endpoint on every Save Log.</div>
+      <div class="admin-hint">Paste your Power Automate HTTP trigger URL here. The form will POST to this endpoint on every Save Log.</div>
     </div>
 
     <div class="admin-section">
@@ -216,7 +216,8 @@
       <div class="admin-section-title">Locations &amp; Default</div>
       <div id="admin-loc-list"></div>
       <div class="admin-add-row">
-        <input class="admin-input" id="new-loc-name" placeholder="Location name" />
+        <input class="admin-input" id="new-loc-name" placeholder="Location name (e.g. 8294 E Carburton)" />
+        <input class="admin-input rate-input" id="new-loc-id" placeholder="ID" title="Project ID used internally for the dashboard (e.g. 8294)" />
         <button class="admin-add-btn" onclick="adminAddLocation()">Add</button>
       </div>
     </div>
@@ -306,11 +307,11 @@ var DEFAULT_CREW = [
   { name: 'Jose',    rate: 400 },
 ];
 var DEFAULT_PROJECTS = [
-  '8294 E Carburton',
-  '1524 W 223rd',
-  'Ivy Park Fullerton',
-  'Ivy Park Tustin',
-  'Unspecified',
+  { name: '8294 E Carburton', id: '8294' },
+  { name: '1524 W 223rd',     id: '1524' },
+  { name: 'Ivy Park Fullerton', id: 'IPFUL' },
+  { name: 'Ivy Park Tustin',  id: 'IPTUS' },
+  { name: 'Unspecified',      id: 'UNSPEC' },
 ];
 var PASSCODE = '1111';
 
@@ -318,8 +319,18 @@ function getCrew()     { try { var s = localStorage.getItem('adminCrew');     re
 function saveCrew(c)   { localStorage.setItem('adminCrew', JSON.stringify(c)); }
 function getProjects() { try { var s = localStorage.getItem('adminProjects'); return s ? JSON.parse(s) : DEFAULT_PROJECTS.slice(); } catch(e) { return DEFAULT_PROJECTS.slice(); } }
 function saveProjects(p) { localStorage.setItem('adminProjects', JSON.stringify(p)); }
-function getDefaultLoc() { return localStorage.getItem('defaultLocation') || getProjects()[0]; }
+function getDefaultLoc() {
+  var stored = localStorage.getItem('defaultLocation');
+  var projects = getProjects();
+  if (stored && projects.some(function(p) { return p.name === stored; })) return stored;
+  return projects.length ? projects[0].name : '';
+}
 function setDefaultLoc(v) { localStorage.setItem('defaultLocation', v); }
+function getProjectIdByName(name) {
+  var projects = getProjects();
+  var match = projects.find(function(p) { return p.name === name; });
+  return match ? match.id : '';
+}
 function getAzureUrl()   { return localStorage.getItem('azureFnUrl') || ''; }
 function setAzureUrl(v)  { localStorage.setItem('azureFnUrl', v); }
 
@@ -352,9 +363,22 @@ function saveSyncMeta(m) { localStorage.setItem('syncMeta', JSON.stringify(m)); 
   } catch(e) { localStorage.removeItem('laborLog'); }
 })();
 
+// Migrate adminProjects from plain strings to {name, id} objects
+(function() {
+  try {
+    var raw = localStorage.getItem('adminProjects');
+    if (!raw) return;
+    var parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length && typeof parsed[0] === 'string') {
+      var migrated = parsed.map(function(name) { return { name: name, id: '' }; });
+      localStorage.setItem('adminProjects', JSON.stringify(migrated));
+    }
+  } catch(e) {}
+})();
+
 function projectOptions(sel) {
   return getProjects().map(function(p) {
-    return '<option value="' + p + '"'+ (sel === p ? ' selected' : '') + '>' + p + '</option>';
+    return '<option value="' + p.name + '"'+ (sel === p.name ? ' selected' : '') + '>' + p.name + '</option>';
   }).join('');
 }
 
@@ -534,7 +558,7 @@ function saveEntries(entries, log) {
   var notesVal = document.getElementById('notes-field').value.trim();
   var dateKey = getDateStr();
   log[dateKey] = entries.map(function(w) {
-    return { date: dateKey, name: w.name, location: w.location, shift: w.shift,
+    return { date: dateKey, name: w.name, location: w.location, locationId: getProjectIdByName(w.location), shift: w.shift,
              hours: w.shift === 'full' ? 8 : 4, pay: w.shift === 'full' ? w.rate : w.rate / 2,
              rate: w.rate, notes: notesVal };
   });
@@ -657,7 +681,7 @@ function saveEdit(dateKey, idx, rate) {
   var shift = document.getElementById('ei-shift-' + safeKey + '-' + idx).value;
   if (!name || !loc) return;
   var log = getLog();
-  log[dateKey][idx] = { date: dateKey, name: name, location: loc, shift: shift, hours: shift === 'full' ? 8 : 4, pay: shift === 'full' ? rate : rate / 2, rate: rate };
+  log[dateKey][idx] = { date: dateKey, name: name, location: loc, locationId: getProjectIdByName(loc), shift: shift, hours: shift === 'full' ? 8 : 4, pay: shift === 'full' ? rate : rate / 2, rate: rate };
   saveLog(log); renderLog();
   var detail = document.getElementById('detail-' + safeKey);
   if (detail) { detail.classList.add('open'); var chev = document.getElementById('chev-' + safeKey); if (chev) chev.classList.add('open'); }
@@ -703,7 +727,7 @@ function saveInlineAdd(dateKey, safeKey) {
   var rate = match ? match.rate : 0;
   var log = getLog();
   if (!log[dateKey]) log[dateKey] = [];
-  log[dateKey].push({ date: dateKey, name: name, location: loc, shift: shift, hours: shift === 'full' ? 8 : 4, pay: shift === 'full' ? rate : rate / 2, rate: rate });
+  log[dateKey].push({ date: dateKey, name: name, location: loc, locationId: getProjectIdByName(loc), shift: shift, hours: shift === 'full' ? 8 : 4, pay: shift === 'full' ? rate : rate / 2, rate: rate });
   saveLog(log); renderLog();
   var detail = document.getElementById('detail-' + safeKey);
   if (detail) { detail.classList.add('open'); var chev = document.getElementById('chev-' + safeKey); if (chev) chev.classList.add('open'); }
@@ -715,8 +739,8 @@ function exportCSV() {
   var log = getLog();
   var all = Object.values(log).flat();
   if (!all.length) return;
-  var headers = ['Date','Member','Location','Shift','Hours','Pay','Notes'];
-  var rows = all.map(function(e) { return [e.date, e.name, e.location, e.shift, e.hours, e.pay, e.notes||'']; });
+  var headers = ['Date','Member','Location','ProjectID','Shift','Hours','Pay','Notes'];
+  var rows = all.map(function(e) { return [e.date, e.name, e.location, e.locationId||'', e.shift, e.hours, e.pay, e.notes||'']; });
   var csv = [headers].concat(rows).map(function(r) { return r.map(function(v) { return '"' + String(v).replace(/"/g, '""')+'"'; }).join(','); }).join('\n');
   var a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
@@ -779,9 +803,9 @@ function saveAzureUrl() {
   var val = document.getElementById('azure-url-input').value.trim();
   setAzureUrl(val);
   var hint = document.querySelector('.admin-hint');
-  hint.textContent = val ? 'URL saved. Form will POST to Azure on next Save Log.' : 'URL cleared. Entries will save locally only.';
+  hint.textContent = val ? 'URL saved. Form will POST to Power Automate on next Save Log.' : 'URL cleared. Entries will save locally only.';
   hint.style.color = val ? 'var(--green)' : 'var(--text3)';
-  setTimeout(function() { hint.textContent = 'Paste your Azure Function HTTP trigger URL here. The form will POST to this endpoint on every Save Log.'; hint.style.color = ''; }, 2500);
+  setTimeout(function() { hint.textContent = 'Paste your Power Automate HTTP trigger URL here. The form will POST to this endpoint on every Save Log.'; hint.style.color = ''; }, 2500);
 }
 function renderAdminCrew() {
   var crew = getCrew();
@@ -799,10 +823,11 @@ function renderAdminLocations() {
   var defLoc = getDefaultLoc();
   var list = document.getElementById('admin-loc-list');
   list.innerHTML = projects.map(function(p, i) {
-    var isDefault = p === defLoc;
+    var isDefault = p.name === defLoc;
+    var idTag = p.id ? ' <span style="font-size:10px;color:var(--text3)">(' + p.id + ')</span>' : '';
     return '<div class="admin-item">'
-      + '<input type="radio" class="loc-default-radio" name="default-loc" value="' + p + '" ' + (isDefault ? 'checked' : '') + ' onchange="adminSetDefault(\'' + p + '\')" title="Set as default" />'
-      + '<span class="admin-item-name">' + p + (isDefault ? ' <span style="font-size:10px;color:var(--green)">(default)</span>' : '') + '</span>'
+      + '<input type="radio" class="loc-default-radio" name="default-loc" value="' + p.name + '" ' + (isDefault ? 'checked' : '') + ' onchange="adminSetDefault(\'' + p.name + '\')" title="Set as default" />'
+      + '<span class="admin-item-name">' + p.name + idTag + (isDefault ? ' <span style="font-size:10px;color:var(--green)">(default)</span>' : '') + '</span>'
       + '<button class="admin-rm" onclick="adminRemoveLocation(' + i + ')" title="Remove">×</button>'
       + '</div>';
   }).join('') || '<div style="font-size:12px;color:var(--text3);padding:4px 0">No locations yet.</div>';
@@ -829,9 +854,11 @@ function adminRemoveLocation(idx) {
 }
 function adminAddLocation() {
   var name = document.getElementById('new-loc-name').value.trim();
+  var id = document.getElementById('new-loc-id').value.trim();
   if (!name) return;
-  var projects = getProjects(); projects.push(name); saveProjects(projects);
+  var projects = getProjects(); projects.push({ name: name, id: id }); saveProjects(projects);
   document.getElementById('new-loc-name').value = '';
+  document.getElementById('new-loc-id').value = '';
   renderAdminLocations(); rebuildCrewRows();
 }
 

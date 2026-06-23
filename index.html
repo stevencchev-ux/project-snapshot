@@ -2444,7 +2444,7 @@ let receiptPendingRetry = null;
 
 function getReceiptLog() { try { return JSON.parse(localStorage.getItem('receiptLog') || '[]'); } catch(e) { return []; } }
 function saveReceiptLog(r) { localStorage.setItem('receiptLog', JSON.stringify(r)); }
-function getReceiptUrl() { return DASHBOARD_DATA_URL || localStorage.getItem('azureFnUrl') || ''; }
+function getReceiptUrl() { return localStorage.getItem('azureFnUrl') || ''; }
 
 
 function initLaborTab() {

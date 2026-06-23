@@ -1,12 +1,263 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<title>Labor Entry</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Project Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;700&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
+    --bg:      #0c0d10;
+    --surface: #121419;
+    --surf2:   #181b22;
+    --border:  rgba(255,255,255,0.06);
+    --border2: rgba(255,255,255,0.1);
+    --text:    #dfe1e8;
+    --text2:   #8a8f9e;
+    --muted:   #565b6b;
+    /* muted accent set — deliberately desaturated vs. the original */
+    --accent:    #8fae6e;   /* soft sage green, replaces acid green */
+    --accent-dim:#6f8a58;
+    --blue:    #6e8db0;     /* dusty blue */
+    --amber:   #b39a5c;     /* muted gold, replaces bright yellow */
+    --rust:    #b06a52;     /* muted terracotta, replaces orange */
+    --red:     #a85d52;     /* muted red */
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    background: var(--bg); color: var(--text);
+    font-family: 'DM Sans', sans-serif; font-size: 15px; min-height: 100vh;
+    overflow-x: hidden;
+  }
+  @media screen and (max-width: 768px) { input, select, textarea, button { font-size: 16px; } }
+
+  /* ── TOP BAR / TABS ── */
+  .topbar {
+    position: sticky; top: 0; z-index: 20;
+    background: rgba(12,13,16,0.92); backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  .topbar-inner { max-width: 900px; margin: 0 auto; padding: 14px 16px 0; }
+  .brand { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: -0.01em; color: var(--text2); margin-bottom: 12px; }
+  .tabs { display: flex; gap: 2px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab {
+    flex-shrink: 0; cursor: pointer; border: none; background: none;
+    font-family: 'DM Mono', monospace; font-size: 12px; letter-spacing: 0.02em;
+    color: var(--muted); padding: 9px 16px; border-bottom: 2px solid transparent;
+    white-space: nowrap; transition: color .15s, border-color .15s;
+  }
+  .tab:hover { color: var(--text2); }
+  .tab.active { color: var(--text); border-bottom-color: var(--accent); }
+  .tab.add-tab { color: var(--muted); font-size: 16px; padding: 8px 14px; }
+  .tab.add-tab:hover { color: var(--accent); }
+
+  /* ── PAGE ── */
+  .page { padding: 20px 16px 60px; max-width: 900px; margin: 0 auto; width: 100%; display: none; }
+  .page.active { display: block; }
+
+  /* ── HEADER ── */
+  .hdr { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 24px; }
+  .hdr-title { font-family: 'Syne', sans-serif; font-size: 17px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.3; }
+  .hdr-meta  { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); margin-top: 5px; letter-spacing: 0.02em; }
+  .badge {
+    flex-shrink: 0; font-family: 'DM Mono', monospace; font-size: 10px; font-weight: 500;
+    padding: 5px 12px; border-radius: 100px; letter-spacing: 0.05em; white-space: nowrap;
+    border: 1px solid var(--border2);
+  }
+  .badge.not-started { background: rgba(255,255,255,0.03); color: var(--muted); }
+  .badge.ahead       { background: rgba(143,174,110,0.08); color: var(--accent); border-color: rgba(143,174,110,0.22); }
+  .badge.on-track    { background: rgba(143,174,110,0.06); color: var(--accent); border-color: rgba(143,174,110,0.18); }
+  .badge.at-risk     { background: rgba(179,154,92,0.08);  color: var(--amber); border-color: rgba(179,154,92,0.22); }
+  .badge.behind      { background: rgba(168,93,82,0.08);   color: var(--red);   border-color: rgba(168,93,82,0.22); }
+
+  /* ── SECTION LABEL ── */
+  .sec {
+    font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.12em;
+    color: var(--muted); text-transform: uppercase; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .sec::after { content:''; flex:1; height:1px; background:var(--border); }
+
+  /* ── CARD ── */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin-bottom: 12px; }
+
+  /* ── DEAL SUMMARY ── */
+  .deal-banner { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 20px; display: flex; align-items: stretch; }
+  .deal-left { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; min-width: 0; }
+  .deal-divider { width: 1px; background: var(--border); margin: 0 18px; flex-shrink: 0; }
+  .deal-right { display: flex; flex-direction: column; justify-content: center; gap: 4px; flex-shrink: 0; }
+  .deal-item { display: flex; flex-direction: column; gap: 3px; }
+  .deal-lbl  { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; }
+  .deal-val  { font-family: 'Syne', sans-serif; font-size: 17px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; color: var(--text); }
+  .deal-spread-lbl { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; }
+  .deal-spread-val { font-family: 'Syne', sans-serif; font-size: 21px; font-weight: 700; color: var(--accent); letter-spacing: -0.02em; line-height: 1; margin-top: 2px; }
+
+  /* ── KPI GRID ── */
+  .kpi-grid-ptd { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 10px; min-width: 0; }
+  .kpi-lbl { font-family: 'DM Mono', monospace; font-size: 8px; letter-spacing: 0.08em; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kpi-val { font-family: 'Syne', sans-serif; font-size: 17px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; color: var(--text); }
+  .kpi-sub { font-size: 10px; color: var(--muted); margin-top: 4px; }
+
+  .kpi-grid-time { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 24px; }
+  .kpi-card-time { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+
+  .prog-track { height: 4px; background: var(--surf2); border-radius: 100px; overflow: hidden; margin-top: 12px; }
+  .prog-fill  { height: 100%; border-radius: 100px; transition: width .6s ease; background: var(--blue); }
+
+  /* ── WEEK STRIP ── */
+  .week-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 6px; }
+  .week-scroll::-webkit-scrollbar { height: 3px; }
+  .week-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+  .week-strip { display: flex; gap: 6px; min-width: max-content; }
+  .wk { flex-shrink: 0; width: 68px; text-align: center; padding: 10px 6px; border-radius: 8px; font-family: 'DM Mono', monospace; border: 1px solid var(--border); }
+  .wk-num  { font-size: 13px; font-weight: 500; }
+  .wk-date { font-size: 9px; margin-top: 3px; opacity: 0.6; }
+  .wk.done    { background: rgba(143,174,110,0.08); color: var(--accent); border-color: rgba(143,174,110,0.2); }
+  .wk.current { background: rgba(179,154,92,0.08);  color: var(--amber);  border-color: rgba(179,154,92,0.25); }
+  .wk.future  { background: var(--surf2); color: var(--muted); }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 14px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+  .legend-dot  { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+
+  .chart-wrap { position: relative; width: 100%; }
+  .donut-row { display: flex; flex-direction: column; align-items: center; }
+  .donut-wrap { position: relative; width: 150px; height: 150px; }
+  .donut-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
+  .donut-num { font-family: 'Syne', sans-serif; font-size: 17px; font-weight: 700; color: var(--text); }
+  .donut-lbl { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--muted); margin-top: 2px; }
+
+  /* ── MILESTONES ── */
+  .ms-item { display: grid; grid-template-columns: 58px 14px 1fr auto; gap: 10px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--border); }
+  .ms-item:last-child { border-bottom: none; }
+  .ms-day  { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); text-align: right; line-height: 1.4; }
+  .ms-dot  { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--border2); background: var(--surf2); flex-shrink: 0; }
+  .ms-dot.done    { background: var(--accent); border-color: var(--accent); }
+  .ms-dot.active  { background: var(--amber); border-color: var(--amber); box-shadow: 0 0 0 3px rgba(179,154,92,0.15); }
+  .ms-dot.overdue { background: var(--red); border-color: var(--red); }
+  .ms-name { font-size: 13px; color: var(--text); line-height: 1.4; }
+  .ms-name.done    { color: var(--muted); text-decoration: line-through; }
+  .ms-name.overdue { color: var(--red); }
+  .ms-name.active  { color: var(--amber); font-weight: 500; }
+  .ms-pill { font-family: 'DM Mono', monospace; font-size: 10px; padding: 3px 8px; border-radius: 100px; white-space: nowrap; letter-spacing: 0.03em; }
+  .ms-pill.done    { background: rgba(143,174,110,0.08); color: var(--accent); }
+  .ms-pill.active  { background: rgba(179,154,92,0.08);  color: var(--amber); }
+  .ms-pill.overdue { background: rgba(168,93,82,0.08);   color: var(--red); }
+  .ms-pill.future  { background: rgba(255,255,255,0.03); color: var(--muted); }
+
+  /* ── LOADING / ERROR / EMPTY ── */
+  .state-block { text-align: center; padding: 60px 20px; color: var(--muted); }
+  .state-block .state-title { font-family: 'Syne', sans-serif; font-size: 14px; color: var(--text2); margin-bottom: 6px; }
+  .state-block .state-sub { font-size: 12px; line-height: 1.6; }
+  .spinner { width: 22px; height: 22px; border: 2px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; margin: 0 auto 16px; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .refresh-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+  .refresh-btn { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); background: none; border: 1px solid var(--border2); border-radius: 6px; padding: 5px 10px; cursor: pointer; letter-spacing: 0.04em; }
+  .refresh-btn:hover { color: var(--text2); background: var(--surf2); }
+  .cache-note { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--muted); }
+
+  /* ── ONBOARDING (+ tab) ── */
+  .ob-form { max-width: 460px; margin: 0 auto; }
+  .ob-field { margin-bottom: 16px; }
+  .ob-label { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.08em; color: var(--muted); text-transform: uppercase; display: block; margin-bottom: 6px; }
+  .ob-input { width: 100%; background: var(--surf2); border: 1px solid var(--border2); border-radius: 8px; padding: 10px 12px; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 14px; outline: none; }
+  .ob-input:focus { border-color: var(--accent); }
+  .ob-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .ob-submit { width: 100%; background: var(--accent); color: #0c0d10; border: none; border-radius: 8px; padding: 12px; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; margin-top: 8px; }
+  .ob-submit:hover { background: var(--accent-dim); }
+  .ob-hint { font-size: 11px; color: var(--muted); line-height: 1.5; margin-bottom: 20px; }
+  .ob-status { font-size: 12px; padding: 9px 12px; border-radius: 8px; margin-top: 12px; display: none; }
+  .ob-status.success { background: rgba(143,174,110,0.08); color: var(--accent); display: block; }
+  .ob-status.error { background: rgba(168,93,82,0.08); color: var(--red); display: block; }
+
+  @media (min-width: 640px) {
+    .hdr-title { font-size: 20px; }
+    .kpi-val { font-size: 22px; }
+    .card { padding: 22px 24px; margin-bottom: 16px; }
+    .week-scroll { overflow-x: visible; }
+    .week-strip  { display: grid; grid-template-columns: repeat(10, 1fr); min-width: unset; }
+    .wk { width: auto; }
+    .donut-row { flex-direction: row; gap: 32px; align-items: center; }
+    .ms-item { grid-template-columns: 68px 14px 1fr auto; gap: 14px; }
+    .kpi-grid-ptd { gap: 12px; }
+    .kpi-card { padding: 16px; border-radius: 12px; }
+    .kpi-val { font-size: 23px; }
+    .deal-val { font-size: 20px; }
+    .deal-spread-val { font-size: 25px; }
+  }
+  @media (min-width: 900px) {
+    .spend-row { display: grid; grid-template-columns: 3fr 2fr; gap: 16px; margin-bottom: 16px; }
+  }
+  /* ── ADMIN / LOCK ── */
+  .pin-dot { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--border2); background: transparent; transition: background .1s; }
+  .pin-dot.filled { background: var(--accent); border-color: var(--accent); }
+  .numpad-btn { background: var(--surf2); border: 1px solid var(--border2); border-radius: 8px; color: var(--text); font-size: 16px; padding: 12px; cursor: pointer; }
+  .numpad-btn:hover { background: var(--border2); }
+  #lock-btn.unlocked { color: var(--accent); }
+
+  .admin-panel { background: var(--surface); border: 1px solid var(--accent); border-radius: 12px; padding: 18px; margin-bottom: 20px; }
+  .admin-panel-title { font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 14px; display: flex; align-items: center; gap: 6px; }
+  .admin-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .admin-row:last-child { border-bottom: none; }
+  .admin-ms-name { flex: 1; font-size: 12.5px; color: var(--text); }
+  .admin-select { background: var(--surf2); border: 1px solid var(--border2); border-radius: 6px; padding: 5px 8px; color: var(--text); font-size: 11px; font-family: 'DM Mono', monospace; outline: none; }
+  .admin-date-input { background: var(--surf2); border: 1px solid var(--border2); border-radius: 6px; padding: 5px 8px; color: var(--text); font-size: 11px; font-family: 'DM Mono', monospace; outline: none; width: 120px; }
+  .admin-btn { background: var(--accent); color: #0c0d10; border: none; border-radius: 7px; padding: 9px 16px; font-size: 12.5px; font-weight: 500; cursor: pointer; }
+  .admin-btn:hover { background: var(--accent-dim); }
+  .admin-btn-outline { background: none; border: 1px solid var(--border2); color: var(--text); border-radius: 7px; padding: 9px 16px; font-size: 12.5px; cursor: pointer; }
+  .admin-btn-outline:hover { background: var(--surf2); }
+  .admin-btn-danger { background: none; border: 1px solid rgba(168,93,82,0.4); color: var(--red); border-radius: 7px; padding: 9px 16px; font-size: 12.5px; cursor: pointer; }
+  .admin-btn-danger:hover { background: rgba(168,93,82,0.08); }
+  .admin-divider { height: 1px; background: var(--border); margin: 16px 0; }
+  .admin-sale-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .admin-field-label { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 0.08em; color: var(--muted); text-transform: uppercase; display: block; margin-bottom: 5px; }
+
+  .tab.completed { color: var(--accent); }
+  .tab.completed::after { content: ' \2713'; font-size: 10px; }
+
+  .sold-banner { background: rgba(143,174,110,0.06); border: 1px solid rgba(143,174,110,0.25); border-radius: 12px; padding: 14px 18px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+  .sold-banner-icon { font-size: 16px; }
+  .sold-banner-text { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--accent); letter-spacing: 0.02em; }
+
+  /* ── RECEIPT ENTRY ── */
+  .receipt-pill { font-family: 'DM Mono', monospace; font-size: 11px; padding: 7px 14px; border-radius: 100px; border: 1px solid var(--border2); background: var(--surf2); color: var(--text2); cursor: pointer; transition: all .15s; white-space: nowrap; }
+  .receipt-pill.active { background: rgba(179,154,92,0.1); border-color: rgba(179,154,92,0.4); color: var(--amber); }
+  .receipt-item { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .receipt-vendor { font-size: 13px; font-weight: 500; color: var(--text); }
+  .receipt-meta { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); margin-top: 3px; }
+  .receipt-amount { font-family: 'DM Mono', monospace; font-size: 13px; font-weight: 500; color: var(--accent); flex-shrink: 0; }
+  .receipt-badge { font-family: 'DM Mono', monospace; font-size: 9px; padding: 3px 7px; border-radius: 100px; flex-shrink: 0; }
+  .receipt-badge.synced { background: rgba(143,174,110,0.08); color: var(--accent); }
+  .receipt-badge.pending { background: rgba(179,154,92,0.08); color: var(--amber); }
+  .receipt-badge.failed { background: rgba(168,93,82,0.08); color: var(--red); }
+  .receipt-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; padding: 4px; flex-shrink: 0; }
+  .receipt-del:hover { color: var(--red); }
+
+  /* ── PLUS DROPDOWN MENU ── */
+  .plus-menu {
+    display: none; position: absolute; top: 100%; right: 0;
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: 10px; min-width: 160px; z-index: 100;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4); overflow: hidden;
+    margin-top: 6px;
+  }
+  .plus-menu.open { display: block; }
+  .plus-menu-item {
+    display: block; width: 100%; padding: 12px 16px; text-align: left;
+    background: none; border: none; color: var(--text); cursor: pointer;
+    font-family: 'DM Sans', sans-serif; font-size: 13px;
+    border-bottom: 1px solid var(--border);
+  }
+  .plus-menu-item:last-child { border-bottom: none; }
+  .plus-menu-item:hover { background: var(--surf2); }
+  .plus-menu-item .item-icon { margin-right: 8px; color: var(--muted); }
+  .plus-tab-wrap { position: relative; }
+
+/* ── LABOR ENTRY STYLES (scoped to #page-labor) ── */
+#page-labor *, #page-labor *::before, #page-labor *::after{ box-sizing: border-box; margin: 0; padding: 0; }#page-labor :root{
     --bg:      #111214;
     --bg2:     #18191c;
     --bg3:     #1e2023;
@@ -25,166 +276,102 @@
     --amber-bg:#2e2208;
     --amber-fg:#e0b050;
   }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); min-height: 100vh; padding: 2rem 1rem; color: var(--text); }
-  .container { max-width: 640px; margin: 0 auto; }
-  .page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 4px; }
-  h1 { font-size: 18px; font-weight: 500; color: var(--text); }
-  .lock-btn { background: none; border: none; cursor: pointer; font-size: 18px; color: var(--text3); padding: 0; line-height: 1; transition: color 0.15s; }
-  .lock-btn:hover { color: var(--text2); }
-  .lock-btn.unlocked { color: var(--green); }
-  .today { font-size: 13px; color: var(--text2); margin-bottom: 1.5rem; }
-  input.today { background: transparent; border: none; outline: none; cursor: pointer; font-family: inherit; padding: 0; border-bottom: 1px dashed var(--border2); color: var(--text2); color-scheme: dark; }
-  input.today:hover, input.today:focus { color: var(--text); border-bottom-color: var(--text2); }
-  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 1.25rem; }
-  .grid-head { display: grid; grid-template-columns: 150px 1fr 110px 32px; background: var(--bg3); border-bottom: 1px solid var(--border); }
-  .grid-row  { display: grid; grid-template-columns: 150px 1fr 110px 32px; border-top: 1px solid var(--border); }
-  .cell { padding: 10px 14px; display: flex; align-items: center; }
-  .cell.head { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text3); padding: 8px 14px; }
-  .name-cell { font-size: 14px; font-weight: 500; color: var(--text); }
-  .loc-cell select { width: 100%; font-size: 13px; background: transparent; border: none; color: var(--text); padding: 0; cursor: pointer; outline: none; color-scheme: dark; }
-  .loc-cell select option { background: var(--bg3); color: var(--text); }
-  .shift-cell { justify-content: flex-start; }
-  .seg { display: inline-flex; border: 1px solid var(--border2); border-radius: 8px; overflow: hidden; }
-  .seg button { font-size: 12px; font-weight: 500; padding: 4px 12px; border: none; background: transparent; cursor: pointer; color: var(--text3); line-height: 1; }
-  .seg button.on-full { background: var(--green); color: #fff; }
-  .seg button.on-half { background: var(--half-bg); color: var(--half-fg); }
-  .seg button:not(.on-full):not(.on-half):hover { background: var(--bg3); color: var(--text2); }
-  .del-cell { justify-content: center; }
-  .del-btn { background: none; border: none; cursor: pointer; color: var(--text3); font-size: 18px; line-height: 1; padding: 0; }
-  .del-btn:hover { color: #e24b4a; }
-  .add-row { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border); cursor: pointer; color: var(--text2); font-size: 13px; background: none; width: 100%; border-left: none; border-right: none; border-bottom: none; }
-  .add-row:hover { background: var(--bg3); color: var(--text); }
-  .extra-name { font-size: 14px; font-weight: 500; background: transparent; border: none; outline: none; color: var(--text); width: 100%; }
-  .extra-name::placeholder { color: var(--text3); font-weight: 400; }
-  .extra-rate { font-size: 12px; background: transparent; border: none; outline: none; color: var(--text2); width: 100%; margin-top: 2px; }
-  .extra-rate::placeholder { color: var(--text3); }
-  .footer { display: flex; align-items: center; justify-content: space-between; padding: 0.25rem 0; }
-  .total-block { font-size: 13px; color: var(--text2); }
-  .total-block span { font-size: 22px; font-weight: 500; color: var(--text); display: block; margin-top: 2px; }
-  .submit-btn { background: var(--green); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; padding: 10px 26px; cursor: pointer; }
-  .submit-btn:hover { background: var(--green2); }
-  .submit-btn:disabled { background: var(--bg3); color: var(--text3); cursor: default; }
-  .status { font-size: 12px; padding: 8px 14px; border-radius: 8px; margin-top: 10px; display: none; }
-  .status.success { background: #0d2e22; color: #4ecca3; display: block; }
-  .status.error   { background: #2e1111; color: #f07070; display: block; }
-  .status.warning { background: var(--amber-bg); color: var(--amber-fg); display: block; }
-  .notes-wrap { margin-bottom: 1.25rem; }
-  .notes-row { display: flex; align-items: flex-start; gap: 8px; background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; }
-  .notes-row textarea { flex: 1; font-family: inherit; font-size: 13px; color: var(--text); background: transparent; border: none; outline: none; resize: none; min-height: 38px; line-height: 1.5; }
-  .notes-row textarea::placeholder { color: var(--text3); }
-
-  /* Sync bar */
-  .sync-bar { display: flex; align-items: center; justify-content: space-between; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 8px 14px; margin-top: 10px; }
-  .sync-status { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text2); }
-  .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text3); flex-shrink: 0; }
-  .sync-dot.synced  { background: var(--green); }
-  .sync-dot.pending { background: var(--amber-fg); }
-  .sync-dot.failed  { background: #f07070; }
-  .sync-dot.syncing { background: var(--blue); animation: blink 1s infinite; }
-  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
-  .retry-btn { font-size: 11px; font-weight: 500; color: var(--text2); background: none; border: 1px solid var(--border2); border-radius: 6px; padding: 3px 10px; cursor: pointer; }
-  .retry-btn:hover { background: var(--bg3); color: var(--text); }
-  .retry-btn:disabled { opacity: 0.4; cursor: default; }
-
-  /* Log section */
-  .log-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
-  .log-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border); background: var(--bg3); }
-  .log-title { font-size: 13px; font-weight: 500; color: var(--text); }
-  .export-btn { font-size: 12px; color: var(--text2); background: none; border: 1px solid var(--border2); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
-  .export-btn:hover { background: var(--bg3); }
-  .log-empty { font-size: 13px; color: var(--text3); padding: 16px 14px; }
-  .day-summary { display: flex; align-items: center; justify-content: space-between; padding: 11px 14px; border-top: 1px solid var(--border); cursor: pointer; user-select: none; }
-  .day-summary:hover { background: var(--bg3); }
-  .day-left { display: flex; align-items: center; gap: 10px; }
-  .day-date { font-size: 13px; font-weight: 500; color: var(--text); }
-  .day-meta { font-size: 12px; color: var(--text2); }
-  .day-right { display: flex; align-items: center; gap: 12px; }
-  .day-total { font-size: 13px; font-weight: 500; color: var(--text); }
-  .day-sync { font-size: 10px; padding: 2px 7px; border-radius: 99px; font-weight: 500; }
-  .day-sync.synced  { background: #0d2e22; color: #4ecca3; }
-  .day-sync.pending { background: var(--amber-bg); color: var(--amber-fg); }
-  .day-sync.failed  { background: #2e1111; color: #f07070; }
-  .chevron { font-size: 12px; color: var(--text3); transition: transform 0.18s; display: inline-block; }
-  .chevron.open { transform: rotate(180deg); }
-  .day-detail { display: none; background: var(--bg3); border-top: 1px solid var(--border); }
-  .day-detail.open { display: block; }
-  .detail-head { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text3); padding: 6px 14px 5px 24px; display: grid; grid-template-columns: 1fr 110px 55px 65px; border-bottom: 1px solid var(--border); }
-  .swipe-wrap { position: relative; overflow: hidden; border-top: 1px solid var(--border); }
-  .swipe-wrap:first-of-type { border-top: none; }
-  .action-btns { position: absolute; right: 0; top: 0; bottom: 0; display: flex; width: 144px; }
-  .action-btns button { flex: 1; border: none; cursor: pointer; font-size: 12px; font-weight: 500; color: #fff; }
-  .btn-edit { background: var(--blue); }
-  .btn-del  { background: var(--red); }
-  .detail-row { display: grid; grid-template-columns: 1fr 110px 55px 65px; font-size: 12px; padding: 9px 14px 9px 24px; color: var(--text2); background: var(--bg3); transition: transform 0.22s ease; will-change: transform; }
-  .detail-row.edit-mode { background: var(--bg2); grid-template-columns: 1fr 110px 55px 80px; gap: 6px; align-items: center; padding: 6px 10px 6px 24px; }
-  .detail-row.edit-mode input,
-  .detail-row.edit-mode select { font-size: 12px; background: var(--bg); border: 1px solid var(--border2); border-radius: 5px; padding: 3px 6px; color: var(--text); width: 100%; outline: none; color-scheme: dark; }
-  .save-btn { font-size: 11px; font-weight: 500; background: var(--green); color: #fff; border: none; border-radius: 5px; padding: 4px 9px; cursor: pointer; white-space: nowrap; width: 100%; }
-  .save-btn:hover { background: var(--green2); }
-  .detail-add { display: flex; align-items: center; gap: 6px; padding: 8px 14px 8px 24px; font-size: 12px; color: var(--text2); background: none; width: 100%; border: none; border-top: 1px solid var(--border); cursor: pointer; }
-  .detail-add:hover { background: var(--bg2); color: var(--text); }
-  .inline-add-row { display: grid; grid-template-columns: 1fr 110px 55px 65px; gap: 6px; align-items: center; padding: 6px 10px 6px 24px; background: var(--bg2); border-top: 1px solid var(--border); }
-  .inline-add-row input,
-  .inline-add-row select { font-size: 12px; background: var(--bg); border: 1px solid var(--border2); border-radius: 5px; padding: 3px 6px; color: var(--text); width: 100%; outline: none; color-scheme: dark; }
-  .inline-add-row select option { background: var(--bg3); }
-  .inline-add-row .save-btn { font-size: 11px; }
-
-  /* Modals */
-  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 100; }
-  .modal { background: var(--bg2); border: 1px solid var(--border2); border-radius: 12px; padding: 1.5rem; max-width: 400px; width: 92%; }
-  .modal h2 { font-size: 15px; font-weight: 500; margin-bottom: 8px; color: var(--text); }
-  .modal p { font-size: 13px; color: var(--text2); margin-bottom: 1.25rem; line-height: 1.5; }
-  .modal-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 1rem; }
-  .modal-btns button { font-size: 13px; font-weight: 500; padding: 7px 16px; border-radius: 8px; cursor: pointer; border: 1px solid var(--border2); background: var(--bg3); color: var(--text); }
-  .modal-btns .btn-primary { background: var(--green); color: #fff; border-color: var(--green); }
-  .modal-btns .btn-primary:hover { background: var(--green2); }
-  .modal-btns button:not(.btn-primary):hover { background: var(--border); }
-  .pin-dots { display: flex; gap: 12px; justify-content: center; margin: 1.25rem 0; }
-  .pin-dot { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--border2); background: transparent; transition: background 0.1s; }
-  .pin-dot.filled { background: var(--green); border-color: var(--green); }
-  .pin-error { color: #f07070; font-size: 12px; text-align: center; margin-top: -8px; margin-bottom: 8px; min-height: 16px; }
-  .numpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; max-width: 220px; margin: 0 auto; }
-  .numpad button { background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; color: var(--text); font-size: 18px; font-weight: 400; padding: 14px; cursor: pointer; transition: background 0.1s; }
-  .numpad button:hover { background: var(--border); }
-  .numpad button.num-del { font-size: 14px; color: var(--text2); }
-  .numpad button.num-empty { background: transparent; border-color: transparent; cursor: default; }
-
-  /* Admin panel */
-  .admin-panel { background: var(--bg2); border: 1px solid var(--green); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.25rem; }
-  .admin-panel h3 { font-size: 13px; font-weight: 500; color: var(--green); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 1rem; display: flex; align-items: center; gap: 6px; }
-  .admin-section { margin-bottom: 1.25rem; }
-  .admin-section:last-child { margin-bottom: 0; }
-  .admin-section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text3); margin-bottom: 8px; }
-  .admin-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); }
-  .admin-item:last-child { border-bottom: none; }
-  .admin-item-name { flex: 1; font-size: 13px; color: var(--text); }
-  .admin-rm { background: none; border: none; cursor: pointer; color: var(--text3); font-size: 16px; padding: 0; line-height: 1; }
-  .admin-rm:hover { color: #e24b4a; }
-  .admin-add-row { display: flex; gap: 6px; margin-top: 8px; }
-  .admin-input { flex: 1; background: var(--bg); border: 1px solid var(--border2); border-radius: 6px; padding: 6px 10px; color: var(--text); font-size: 13px; outline: none; font-family: inherit; color-scheme: dark; }
-  .admin-input::placeholder { color: var(--text3); }
-  .admin-input.rate-input { width: 80px; flex: none; }
-  .admin-add-btn { background: var(--green); color: #fff; border: none; border-radius: 6px; padding: 6px 14px; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; }
-  .admin-add-btn:hover { background: var(--green2); }
-  .admin-rate-edit { width: 70px; background: var(--bg); border: 1px solid var(--border2); border-radius: 5px; padding: 2px 6px; color: var(--text); font-size: 12px; outline: none; color-scheme: dark; }
-  /* default location radio */
-  .loc-default-radio { width: 16px; height: 16px; accent-color: var(--green); cursor: pointer; flex-shrink: 0; }
-  .loc-default-label { font-size: 11px; color: var(--text3); white-space: nowrap; }
-  /* azure url field */
-  .admin-url-row { display: flex; gap: 6px; align-items: center; }
-  .admin-url-input { flex: 1; background: var(--bg); border: 1px solid var(--border2); border-radius: 6px; padding: 6px 10px; color: var(--text); font-size: 12px; outline: none; font-family: inherit; color-scheme: dark; }
-  .admin-url-input::placeholder { color: var(--text3); }
-  .admin-save-btn { background: var(--green); color: #fff; border: none; border-radius: 6px; padding: 6px 12px; font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap; }
-  .admin-save-btn:hover { background: var(--green2); }
-  .admin-hint { font-size: 11px; color: var(--text3); margin-top: 5px; line-height: 1.4; }
-
-  /* Prevent iOS auto-zoom on input focus */
-  @media screen and (max-width: 768px) {
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); min-height: 100vh; padding: 2rem 1rem; color: var(--text); }#page-labor .container{ max-width: 640px; margin: 0 auto; }#page-labor .page-header{ display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 4px; }#page-labor h1{ font-size: 18px; font-weight: 500; color: var(--text); }#page-labor .lock-btn{ background: none; border: none; cursor: pointer; font-size: 18px; color: var(--text3); padding: 0; line-height: 1; transition: color 0.15s; }#page-labor .lock-btn:hover{ color: var(--text2); }#page-labor .lock-btn.unlocked{ color: var(--green); }#page-labor .today{ font-size: 13px; color: var(--text2); margin-bottom: 1.5rem; }#page-labor input.today{ background: transparent; border: none; outline: none; cursor: pointer; font-family: inherit; padding: 0; border-bottom: 1px dashed var(--border2); color: var(--text2); color-scheme: dark; }#page-labor input.today:hover, #page-labor input.today:focus{ color: var(--text); border-bottom-color: var(--text2); }#page-labor .card{ background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 1.25rem; }#page-labor .grid-head{ display: grid; grid-template-columns: 150px 1fr 110px 32px; background: var(--bg3); border-bottom: 1px solid var(--border); }#page-labor .grid-row{ display: grid; grid-template-columns: 150px 1fr 110px 32px; border-top: 1px solid var(--border); }#page-labor .cell{ padding: 10px 14px; display: flex; align-items: center; }#page-labor .cell.head{ font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text3); padding: 8px 14px; }#page-labor .name-cell{ font-size: 14px; font-weight: 500; color: var(--text); }#page-labor .loc-cell select{ width: 100%; font-size: 13px; background: transparent; border: none; color: var(--text); padding: 0; cursor: pointer; outline: none; color-scheme: dark; }#page-labor .loc-cell select option{ background: var(--bg3); color: var(--text); }#page-labor .shift-cell{ justify-content: flex-start; }#page-labor .seg{ display: inline-flex; border: 1px solid var(--border2); border-radius: 8px; overflow: hidden; }#page-labor .seg button{ font-size: 12px; font-weight: 500; padding: 4px 12px; border: none; background: transparent; cursor: pointer; color: var(--text3); line-height: 1; }#page-labor .seg button.on-full{ background: var(--green); color: #fff; }#page-labor .seg button.on-half{ background: var(--half-bg); color: var(--half-fg); }#page-labor .seg button:not(.on-full):not(.on-half):hover{ background: var(--bg3); color: var(--text2); }#page-labor .del-cell{ justify-content: center; }#page-labor .del-btn{ background: none; border: none; cursor: pointer; color: var(--text3); font-size: 18px; line-height: 1; padding: 0; }#page-labor .del-btn:hover{ color: #e24b4a; }#page-labor .add-row{ display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border); cursor: pointer; color: var(--text2); font-size: 13px; background: none; width: 100%; border-left: none; border-right: none; border-bottom: none; }#page-labor .add-row:hover{ background: var(--bg3); color: var(--text); }#page-labor .extra-name{ font-size: 14px; font-weight: 500; background: transparent; border: none; outline: none; color: var(--text); width: 100%; }#page-labor .extra-name::placeholder{ color: var(--text3); font-weight: 400; }#page-labor .extra-rate{ font-size: 12px; background: transparent; border: none; outline: none; color: var(--text2); width: 100%; margin-top: 2px; }#page-labor .extra-rate::placeholder{ color: var(--text3); }#page-labor .footer{ display: flex; align-items: center; justify-content: space-between; padding: 0.25rem 0; }#page-labor .total-block{ font-size: 13px; color: var(--text2); }#page-labor .total-block span{ font-size: 22px; font-weight: 500; color: var(--text); display: block; margin-top: 2px; }#page-labor .submit-btn{ background: var(--green); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; padding: 10px 26px; cursor: pointer; }#page-labor .submit-btn:hover{ background: var(--green2); }#page-labor .submit-btn:disabled{ background: var(--bg3); color: var(--text3); cursor: default; }#page-labor .status{ font-size: 12px; padding: 8px 14px; border-radius: 8px; margin-top: 10px; display: none; }#page-labor .status.success{ background: #0d2e22; color: #4ecca3; display: block; }#page-labor .status.error{ background: #2e1111; color: #f07070; display: block; }#page-labor .status.warning{ background: var(--amber-bg); color: var(--amber-fg); display: block; }#page-labor .notes-wrap{ margin-bottom: 1.25rem; }#page-labor .notes-row{ display: flex; align-items: flex-start; gap: 8px; background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; }#page-labor .notes-row textarea{ flex: 1; font-family: inherit; font-size: 13px; color: var(--text); background: transparent; border: none; outline: none; resize: none; min-height: 38px; line-height: 1.5; }#page-labor .notes-row textarea::placeholder{ color: var(--text3); }#page-labor /* Sync bar */
+  .sync-bar{ display: flex; align-items: center; justify-content: space-between; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 8px 14px; margin-top: 10px; }#page-labor .sync-status{ display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text2); }#page-labor .sync-dot{ width: 8px; height: 8px; border-radius: 50%; background: var(--text3); flex-shrink: 0; }#page-labor .sync-dot.synced{ background: var(--green); }#page-labor .sync-dot.pending{ background: var(--amber-fg); }#page-labor .sync-dot.failed{ background: #f07070; }#page-labor .sync-dot.syncing{ background: var(--blue); animation: blink 1s infinite; }
+  @keyframes blink {#page-labor 0%, #page-labor 100%{opacity:1}#page-labor 50%{opacity:0.3} }#page-labor .retry-btn{ font-size: 11px; font-weight: 500; color: var(--text2); background: none; border: 1px solid var(--border2); border-radius: 6px; padding: 3px 10px; cursor: pointer; }#page-labor .retry-btn:hover{ background: var(--bg3); color: var(--text); }#page-labor .retry-btn:disabled{ opacity: 0.4; cursor: default; }#page-labor /* Log section */
+  .log-card{ background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }#page-labor .log-header{ display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border); background: var(--bg3); }#page-labor .log-title{ font-size: 13px; font-weight: 500; color: var(--text); }#page-labor .export-btn{ font-size: 12px; color: var(--text2); background: none; border: 1px solid var(--border2); border-radius: 6px; padding: 4px 10px; cursor: pointer; }#page-labor .export-btn:hover{ background: var(--bg3); }#page-labor .log-empty{ font-size: 13px; color: var(--text3); padding: 16px 14px; }#page-labor .day-summary{ display: flex; align-items: center; justify-content: space-between; padding: 11px 14px; border-top: 1px solid var(--border); cursor: pointer; user-select: none; }#page-labor .day-summary:hover{ background: var(--bg3); }#page-labor .day-left{ display: flex; align-items: center; gap: 10px; }#page-labor .day-date{ font-size: 13px; font-weight: 500; color: var(--text); }#page-labor .day-meta{ font-size: 12px; color: var(--text2); }#page-labor .day-right{ display: flex; align-items: center; gap: 12px; }#page-labor .day-total{ font-size: 13px; font-weight: 500; color: var(--text); }#page-labor .day-sync{ font-size: 10px; padding: 2px 7px; border-radius: 99px; font-weight: 500; }#page-labor .day-sync.synced{ background: #0d2e22; color: #4ecca3; }#page-labor .day-sync.pending{ background: var(--amber-bg); color: var(--amber-fg); }#page-labor .day-sync.failed{ background: #2e1111; color: #f07070; }#page-labor .chevron{ font-size: 12px; color: var(--text3); transition: transform 0.18s; display: inline-block; }#page-labor .chevron.open{ transform: rotate(180deg); }#page-labor .day-detail{ display: none; background: var(--bg3); border-top: 1px solid var(--border); }#page-labor .day-detail.open{ display: block; }#page-labor .detail-head{ font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text3); padding: 6px 14px 5px 24px; display: grid; grid-template-columns: 1fr 110px 55px 65px; border-bottom: 1px solid var(--border); }#page-labor .swipe-wrap{ position: relative; overflow: hidden; border-top: 1px solid var(--border); }#page-labor .swipe-wrap:first-of-type{ border-top: none; }#page-labor .action-btns{ position: absolute; right: 0; top: 0; bottom: 0; display: flex; width: 144px; }#page-labor .action-btns button{ flex: 1; border: none; cursor: pointer; font-size: 12px; font-weight: 500; color: #fff; }#page-labor .btn-edit{ background: var(--blue); }#page-labor .btn-del{ background: var(--red); }#page-labor .detail-row{ display: grid; grid-template-columns: 1fr 110px 55px 65px; font-size: 12px; padding: 9px 14px 9px 24px; color: var(--text2); background: var(--bg3); transition: transform 0.22s ease; will-change: transform; }#page-labor .detail-row.edit-mode{ background: var(--bg2); grid-template-columns: 1fr 110px 55px 80px; gap: 6px; align-items: center; padding: 6px 10px 6px 24px; }#page-labor .detail-row.edit-mode input, #page-labor .detail-row.edit-mode select{ font-size: 12px; background: var(--bg); border: 1px solid var(--border2); border-radius: 5px; padding: 3px 6px; color: var(--text); width: 100%; outline: none; color-scheme: dark; }#page-labor .save-btn{ font-size: 11px; font-weight: 500; background: var(--green); color: #fff; border: none; border-radius: 5px; padding: 4px 9px; cursor: pointer; white-space: nowrap; width: 100%; }#page-labor .save-btn:hover{ background: var(--green2); }#page-labor .detail-add{ display: flex; align-items: center; gap: 6px; padding: 8px 14px 8px 24px; font-size: 12px; color: var(--text2); background: none; width: 100%; border: none; border-top: 1px solid var(--border); cursor: pointer; }#page-labor .detail-add:hover{ background: var(--bg2); color: var(--text); }#page-labor .inline-add-row{ display: grid; grid-template-columns: 1fr 110px 55px 65px; gap: 6px; align-items: center; padding: 6px 10px 6px 24px; background: var(--bg2); border-top: 1px solid var(--border); }#page-labor .inline-add-row input, #page-labor .inline-add-row select{ font-size: 12px; background: var(--bg); border: 1px solid var(--border2); border-radius: 5px; padding: 3px 6px; color: var(--text); width: 100%; outline: none; color-scheme: dark; }#page-labor .inline-add-row select option{ background: var(--bg3); }#page-labor .inline-add-row .save-btn{ font-size: 11px; }#page-labor /* Modals */
+  .modal-bg{ position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 100; }#page-labor .modal{ background: var(--bg2); border: 1px solid var(--border2); border-radius: 12px; padding: 1.5rem; max-width: 400px; width: 92%; }#page-labor .modal h2{ font-size: 15px; font-weight: 500; margin-bottom: 8px; color: var(--text); }#page-labor .modal p{ font-size: 13px; color: var(--text2); margin-bottom: 1.25rem; line-height: 1.5; }#page-labor .modal-btns{ display: flex; gap: 8px; justify-content: flex-end; margin-top: 1rem; }#page-labor .modal-btns button{ font-size: 13px; font-weight: 500; padding: 7px 16px; border-radius: 8px; cursor: pointer; border: 1px solid var(--border2); background: var(--bg3); color: var(--text); }#page-labor .modal-btns .btn-primary{ background: var(--green); color: #fff; border-color: var(--green); }#page-labor .modal-btns .btn-primary:hover{ background: var(--green2); }#page-labor .modal-btns button:not(.btn-primary):hover{ background: var(--border); }#page-labor .pin-dots{ display: flex; gap: 12px; justify-content: center; margin: 1.25rem 0; }#page-labor .pin-dot{ width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--border2); background: transparent; transition: background 0.1s; }#page-labor .pin-dot.filled{ background: var(--green); border-color: var(--green); }#page-labor .pin-error{ color: #f07070; font-size: 12px; text-align: center; margin-top: -8px; margin-bottom: 8px; min-height: 16px; }#page-labor .numpad{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; max-width: 220px; margin: 0 auto; }#page-labor .numpad button{ background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; color: var(--text); font-size: 18px; font-weight: 400; padding: 14px; cursor: pointer; transition: background 0.1s; }#page-labor .numpad button:hover{ background: var(--border); }#page-labor .numpad button.num-del{ font-size: 14px; color: var(--text2); }#page-labor .numpad button.num-empty{ background: transparent; border-color: transparent; cursor: default; }#page-labor /* Admin panel */
+  .admin-panel{ background: var(--bg2); border: 1px solid var(--green); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.25rem; }#page-labor .admin-panel h3{ font-size: 13px; font-weight: 500; color: var(--green); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 1rem; display: flex; align-items: center; gap: 6px; }#page-labor .admin-section{ margin-bottom: 1.25rem; }#page-labor .admin-section:last-child{ margin-bottom: 0; }#page-labor .admin-section-title{ font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text3); margin-bottom: 8px; }#page-labor .admin-item{ display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); }#page-labor .admin-item:last-child{ border-bottom: none; }#page-labor .admin-item-name{ flex: 1; font-size: 13px; color: var(--text); }#page-labor .admin-rm{ background: none; border: none; cursor: pointer; color: var(--text3); font-size: 16px; padding: 0; line-height: 1; }#page-labor .admin-rm:hover{ color: #e24b4a; }#page-labor .admin-add-row{ display: flex; gap: 6px; margin-top: 8px; }#page-labor .admin-input{ flex: 1; background: var(--bg); border: 1px solid var(--border2); border-radius: 6px; padding: 6px 10px; color: var(--text); font-size: 13px; outline: none; font-family: inherit; color-scheme: dark; }#page-labor .admin-input::placeholder{ color: var(--text3); }#page-labor .admin-input.rate-input{ width: 80px; flex: none; }#page-labor .admin-add-btn{ background: var(--green); color: #fff; border: none; border-radius: 6px; padding: 6px 14px; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; }#page-labor .admin-add-btn:hover{ background: var(--green2); }#page-labor .admin-rate-edit{ width: 70px; background: var(--bg); border: 1px solid var(--border2); border-radius: 5px; padding: 2px 6px; color: var(--text); font-size: 12px; outline: none; color-scheme: dark; }#page-labor /* default location radio */
+  .loc-default-radio{ width: 16px; height: 16px; accent-color: var(--green); cursor: pointer; flex-shrink: 0; }#page-labor .loc-default-label{ font-size: 11px; color: var(--text3); white-space: nowrap; }#page-labor /* azure url field */
+  .admin-url-row{ display: flex; gap: 6px; align-items: center; }#page-labor .admin-url-input{ flex: 1; background: var(--bg); border: 1px solid var(--border2); border-radius: 6px; padding: 6px 10px; color: var(--text); font-size: 12px; outline: none; font-family: inherit; color-scheme: dark; }#page-labor .admin-url-input::placeholder{ color: var(--text3); }#page-labor .admin-save-btn{ background: var(--green); color: #fff; border: none; border-radius: 6px; padding: 6px 12px; font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap; }#page-labor .admin-save-btn:hover{ background: var(--green2); }#page-labor .admin-hint{ font-size: 11px; color: var(--text3); margin-top: 5px; line-height: 1.4; }#page-labor /* Prevent iOS auto-zoom on input focus */
+  @media screen and (max-width: 768px){
     input, select, textarea { font-size: 16px !important; }
   }
+
 </style>
 </head>
 <body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="brand" style="display:flex;align-items:center;justify-content:space-between">
+      <span>Fix &amp; Flip Dashboards</span>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button onclick="openLockModal()" id="lock-btn" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:0" title="Admin">&#128274;</button>
+        <button onclick="openSettings()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:0" title="Settings">&#9881;</button>
+      </div>
+    </div>
+    <div class="tabs" id="tab-bar"></div>
+  </div>
+</div>
+
+<div id="pages-container"></div>
+
+<!-- Plus dropdown menu -->
+<div class="plus-menu" id="plus-menu">
+  <button class="plus-menu-item" onclick="closePlusMenu(); switchTab('__labor')">
+    <span class="item-icon">&#43;</span>Log Labor
+  </button>
+  <button class="plus-menu-item" onclick="closePlusMenu(); switchTab('__receipt')">
+    <span class="item-icon">&#43;</span>Add Receipt
+  </button>
+  <button class="plus-menu-item" onclick="closePlusMenu(); switchTab('__onboard')">
+    <span class="item-icon">&#43;</span>Add Project
+  </button>
+</div>
+
+<!-- Settings modal -->
+<div id="settings-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:50;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:24px;max-width:420px;width:90%">
+    <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;margin-bottom:6px">Dashboard Settings</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.5">Paste your Power Automate URLs below. Both Labor-Tracker and Get-Dashboard-Data URLs are required.</div>
+    <div class="ob-label" style="margin-bottom:4px">Get-Dashboard-Data URL</div>
+    <input class="ob-input" id="settings-url" placeholder="https://...invoke?api-version=1&sp=...&sig=..." style="margin-bottom:10px" />
+    <div class="ob-label" style="margin-bottom:4px">Labor-Tracker URL (for labor + receipts)</div>
+    <input class="ob-input" id="settings-labor-url" placeholder="https://...invoke?api-version=1&sp=...&sig=..." style="margin-bottom:12px" />
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="closeSettings()" style="background:none;border:1px solid var(--border2);border-radius:8px;padding:8px 16px;color:var(--text);cursor:pointer;font-size:13px">Cancel</button>
+      <button onclick="saveSettings()" style="background:var(--accent);border:none;border-radius:8px;padding:8px 16px;color:#0c0d10;cursor:pointer;font-size:13px;font-weight:500">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Passcode modal -->
+<div id="lock-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:50;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:24px;max-width:340px;width:90%">
+    <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;margin-bottom:6px">Admin Access</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:18px">Enter passcode to edit this project.</div>
+    <div style="display:flex;gap:10px;justify-content:center;margin-bottom:18px">
+      <div class="pin-dot" id="pdot0"></div>
+      <div class="pin-dot" id="pdot1"></div>
+      <div class="pin-dot" id="pdot2"></div>
+      <div class="pin-dot" id="pdot3"></div>
+    </div>
+    <div id="pin-error" style="color:var(--red);font-size:11px;text-align:center;min-height:14px;margin-bottom:8px"></div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:200px;margin:0 auto">
+      <button class="numpad-btn" onclick="pinPress('1')">1</button>
+      <button class="numpad-btn" onclick="pinPress('2')">2</button>
+      <button class="numpad-btn" onclick="pinPress('3')">3</button>
+      <button class="numpad-btn" onclick="pinPress('4')">4</button>
+      <button class="numpad-btn" onclick="pinPress('5')">5</button>
+      <button class="numpad-btn" onclick="pinPress('6')">6</button>
+      <button class="numpad-btn" onclick="pinPress('7')">7</button>
+      <button class="numpad-btn" onclick="pinPress('8')">8</button>
+      <button class="numpad-btn" onclick="pinPress('9')">9</button>
+      <button class="numpad-btn" style="visibility:hidden"></button>
+      <button class="numpad-btn" onclick="pinPress('0')">0</button>
+      <button class="numpad-btn" onclick="pinDel()" style="font-size:13px">&#9003;</button>
+    </div>
+    <div style="display:flex;justify-content:center;margin-top:16px">
+      <button onclick="closeLockModal()" style="background:none;border:1px solid var(--border2);border-radius:8px;padding:8px 20px;color:var(--text);cursor:pointer;font-size:13px">Cancel</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Labor Entry page -->
+<div class="page" id="page-labor">
+  <div style="padding:0 0 80px">
 <div class="container">
 
   <div class="page-header">
@@ -199,12 +386,7 @@
     <h3>&#9881; Admin Mode</h3>
 
     <div class="admin-section">
-      <div class="admin-section-title">Power Automate URL</div>
-      <div class="admin-url-row">
-        <input class="admin-url-input" id="azure-url-input" type="url" placeholder="https://prod-xx.westus.logic.azure.com:443/workflows/..." />
-        <button class="admin-save-btn" onclick="saveAzureUrl()">Save</button>
-      </div>
-      <div class="admin-hint">Paste your Power Automate HTTP trigger URL here. The form will POST to this endpoint on every Save Log.</div>
+      
     </div>
 
     <div class="admin-section">
@@ -304,7 +486,134 @@
   </div>
 </div>
 
+
+  </div>
+</div>
+
+<!-- Receipt Entry page -->
+<div class="page" id="page-receipt">
+  <div class="hdr" style="margin-bottom:20px">
+    <div>
+      <div class="hdr-title">Receipt Entry</div>
+      <div class="hdr-meta">MANUAL VENDOR RECEIPTS · SYNCS TO ONEDRIVE</div>
+    </div>
+  </div>
+
+  <div style="max-width:520px;margin:0 auto">
+
+    <!-- PROJECT PILLS -->
+    <div class="field" style="margin-bottom:14px">
+      <div class="kpi-lbl" style="margin-bottom:8px">Project</div>
+      <div id="receipt-project-pills" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+    </div>
+
+    <!-- DATE -->
+    <div class="field" style="margin-bottom:14px">
+      <div class="kpi-lbl" style="margin-bottom:6px">Date</div>
+      <input class="ob-input" type="date" id="r-date" />
+    </div>
+
+    <!-- VENDOR + AMOUNT -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <div>
+        <div class="kpi-lbl" style="margin-bottom:6px">Vendor</div>
+        <input class="ob-input" type="text" id="r-vendor" placeholder="Lowe's, Amazon…" />
+      </div>
+      <div>
+        <div class="kpi-lbl" style="margin-bottom:6px">Amount</div>
+        <div style="position:relative">
+          <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none">$</span>
+          <input class="ob-input" type="number" step="0.01" id="r-amount" placeholder="0.00" style="padding-left:24px" />
+        </div>
+      </div>
+    </div>
+
+    <!-- DESCRIPTION -->
+    <div style="margin-bottom:14px">
+      <div class="kpi-lbl" style="margin-bottom:6px">Description</div>
+      <input class="ob-input" type="text" id="r-desc" placeholder="e.g. 2x4 framing lumber" />
+    </div>
+
+    <!-- NOTES -->
+    <div style="margin-bottom:16px">
+      <div class="kpi-lbl" style="margin-bottom:6px">Notes (optional)</div>
+      <input class="ob-input" type="text" id="r-notes" placeholder="Optional" />
+    </div>
+
+    <!-- SAVE BUTTON -->
+    <button class="ob-submit" onclick="saveReceiptEntry()" id="r-save-btn">Save Receipt</button>
+    <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);text-align:center;margin-top:10px;line-height:1.5">Receipts will reflect on the dashboard at the next labor log sync.</div>
+
+    <!-- SYNC BAR -->
+    <div id="r-sync-bar" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-radius:9px;margin-top:12px;background:var(--surf2);border:1px solid var(--border);font-family:DM Mono,monospace;font-size:11px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div id="r-sync-dot" style="width:7px;height:7px;border-radius:50%;background:var(--muted)"></div>
+        <span id="r-sync-text">No receipts saved yet</span>
+      </div>
+      <button id="r-retry-btn" onclick="retryReceiptSync()" style="display:none;background:none;border:1px solid var(--border2);border-radius:6px;padding:4px 10px;color:var(--text2);font-family:DM Mono,monospace;font-size:10px;cursor:pointer">Retry</button>
+    </div>
+
+    <!-- SAVED RECEIPTS LIST -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:24px;margin-bottom:12px">
+      <div class="sec" style="margin:0;flex:1">Saved Receipts</div>
+      <button onclick="exportReceiptCSV()" style="background:none;border:1px solid var(--border2);border-radius:7px;padding:6px 12px;color:var(--text2);font-family:DM Mono,monospace;font-size:10px;cursor:pointer">Export CSV</button>
+    </div>
+    <div id="r-receipt-list"></div>
+
+
+
+  </div>
+</div>
+
+<!-- Onboarding page template (cloned per "+ " click) -->
+<div class="page" id="page-onboard">
+  <div class="hdr"><div class="hdr-title">Add a Project</div></div>
+  <div class="ob-form">
+    <div class="ob-hint">This sets up a new project tab. Purchase price, budget, and target sale are entered once here — labor and notes flow in automatically from the labor tracker once the Project ID matches.</div>
+
+    <div class="ob-field">
+      <label class="ob-label">Project ID</label>
+      <input class="ob-input" id="ob-id" placeholder="e.g. 8294" />
+    </div>
+    <div class="ob-field">
+      <label class="ob-label">Project Name</label>
+      <input class="ob-input" id="ob-name" placeholder="e.g. 8294 E Carburton St · Long Beach" />
+    </div>
+    <div class="ob-row2">
+      <div class="ob-field">
+        <label class="ob-label">Start Date</label>
+        <input class="ob-input" id="ob-start" type="date" />
+      </div>
+      <div class="ob-field">
+        <label class="ob-label">Project Weeks</label>
+        <input class="ob-input" id="ob-weeks" type="number" placeholder="10" />
+      </div>
+    </div>
+    <div class="ob-row2">
+      <div class="ob-field">
+        <label class="ob-label">Purchase Price</label>
+        <input class="ob-input" id="ob-purchase" type="number" placeholder="850000" />
+      </div>
+      <div class="ob-field">
+        <label class="ob-label">Reno Budget</label>
+        <input class="ob-input" id="ob-budget" type="number" placeholder="110000" />
+      </div>
+    </div>
+    <div class="ob-field">
+      <label class="ob-label">Target Sale Price</label>
+      <input class="ob-input" id="ob-target" type="number" placeholder="1200000" />
+    </div>
+
+    <button class="ob-submit" onclick="submitOnboard()">Add Project</button>
+    <div class="ob-status" id="ob-status"></div>
+  </div>
+</div>
+
+
 <script>
+const PASSCODE = '1111';
+
+
 var DEFAULT_CREW = [
   { name: 'David G', rate: 300 },
   { name: 'Ernesto', rate: 300 },
@@ -318,7 +627,7 @@ var DEFAULT_PROJECTS = [
   { name: 'Ivy Park Tustin',  id: 'IPTUS' },
   { name: 'Unspecified',      id: 'UNSPEC' },
 ];
-var PASSCODE = '1111';
+// PASSCODE from dashboard
 
 function getCrew()     { try { var s = localStorage.getItem('adminCrew');     return s ? JSON.parse(s) : DEFAULT_CREW.slice(); }     catch(e) { return DEFAULT_CREW.slice(); } }
 function saveCrew(c)   { localStorage.setItem('adminCrew', JSON.stringify(c)); }
@@ -755,16 +1064,8 @@ function exportCSV() {
 // ── Admin / Lock ──────────────────────────────────────────────
 var pinBuffer = '';
 
-function openLockModal() {
-  if (adminUnlocked) { toggleAdminPanel(); return; }
-  pinBuffer = ''; updatePinDots();
-  document.getElementById('pin-error').textContent = '';
-  document.getElementById('lock-modal').style.display = 'flex';
-}
-function closeLockModal() {
-  document.getElementById('lock-modal').style.display = 'none';
-  pinBuffer = ''; updatePinDots();
-}
+// openLockModal handled by dashboard
+// closeLockModal handled by dashboard
 function pinPress(digit) {
   if (pinBuffer.length >= 4) return;
   pinBuffer += digit; updatePinDots();
@@ -774,7 +1075,13 @@ function pinPress(digit) {
         adminUnlocked = true;
         document.getElementById('lock-btn').classList.add('unlocked');
         document.getElementById('lock-btn').innerHTML = '&#128275;';
-        closeLockModal(); showAdminPanel();
+        closeLockModal();
+        // Route to the right admin panel based on active tab
+        if (activeTab === '__labor') {
+          showAdminPanel(); // labor entry admin
+        } else if (activeTab && activeTab !== '__onboard' && activeTab !== '__receipt') {
+          renderAdminPanel(activeTab); // project dashboard admin
+        }
       } else {
         document.getElementById('pin-error').textContent = 'Incorrect passcode';
         pinBuffer = ''; updatePinDots();
@@ -782,13 +1089,8 @@ function pinPress(digit) {
     }, 150);
   }
 }
-function pinDel() { pinBuffer = pinBuffer.slice(0,-1); updatePinDots(); document.getElementById('pin-error').textContent = ''; }
-function updatePinDots() {
-  for (var i = 0; i < 4; i++) {
-    var dot = document.getElementById('dot' + i);
-    if (i < pinBuffer.length) dot.classList.add('filled'); else dot.classList.remove('filled');
-  }
-}
+// pinDel handled by dashboard
+// updatePinDots handled by dashboard
 function toggleAdminPanel() {
   var panel = document.getElementById('admin-panel');
   if (panel.style.display === 'none') { showAdminPanel(); }
@@ -801,17 +1103,10 @@ function toggleAdminPanel() {
 function showAdminPanel() {
   var panel = document.getElementById('admin-panel');
   panel.style.display = 'block';
-  document.getElementById('azure-url-input').value = getAzureUrl();
+  // URL managed via settings modal
   renderAdminCrew(); renderAdminLocations();
 }
-function saveAzureUrl() {
-  var val = document.getElementById('azure-url-input').value.trim();
-  setAzureUrl(val);
-  var hint = document.querySelector('.admin-hint');
-  hint.textContent = val ? 'URL saved. Form will POST to Power Automate on next Save Log.' : 'URL cleared. Entries will save locally only.';
-  hint.style.color = val ? 'var(--green)' : 'var(--text3)';
-  setTimeout(function() { hint.textContent = 'Paste your Power Automate HTTP trigger URL here. The form will POST to this endpoint on every Save Log.'; hint.style.color = ''; }, 2500);
-}
+// saveAzureUrl — URL managed via settings modal
 function renderAdminCrew() {
   var crew = getCrew();
   var list = document.getElementById('admin-crew-list');
@@ -871,6 +1166,1541 @@ function adminAddLocation() {
 rebuildCrewRows();
 renderLog();
 updateSyncBarFromMeta();
+
+
+
+/* ============================================================
+   CONFIG
+   ============================================================ */
+// Paste the "Get-Dashboard-Data" Power Automate HTTP URL here (without the &projectId= part)
+let DASHBOARD_DATA_URL = localStorage.getItem('dashboardDataUrl') || '';
+
+function openSettings() {
+  $('settings-url').value = DASHBOARD_DATA_URL;
+  const laborUrlEl = $('settings-labor-url');
+  if (laborUrlEl) laborUrlEl.value = localStorage.getItem('azureFnUrl') || '';
+  $('settings-modal').style.display = 'flex';
+}
+function closeSettings() { $('settings-modal').style.display = 'none'; }
+function saveSettings() {
+  const val = $('settings-url').value.trim();
+  DASHBOARD_DATA_URL = val;
+  localStorage.setItem('dashboardDataUrl', val);
+  const laborVal = $('settings-labor-url') ? $('settings-labor-url').value.trim() : '';
+  if (laborVal) localStorage.setItem('azureFnUrl', laborVal);
+  closeSettings();
+  if (activeTab && activeTab !== '__onboard' && activeTab !== '__receipt' && activeTab !== '__labor') loadProject(activeTab, true);
+}
+
+// Default milestone template — same checklist for every flip, matched against Notes via keywords.
+// Each milestone needs: name (display), keywords (array of phrases to look for, matched alongside "completed"/"done"/"finished"), targetDay (for default pacing display before any data exists)
+const MILESTONE_TEMPLATE = [
+  { name: 'Demo complete',              keywords: ['demo'],                          targetDay: 3  },
+  { name: 'Framing / structural',       keywords: ['framing', 'structural'],         targetDay: 5  },
+  { name: 'Rough electrical',           keywords: ['rough electrical', 'electrical'],targetDay: 8  },
+  { name: 'Rough plumbing',             keywords: ['rough plumbing', 'plumbing'],    targetDay: 10 },
+  { name: 'Drywall hang & tape',        keywords: ['drywall'],                       targetDay: 14 },
+  { name: 'Kitchen cabinets installed', keywords: ['kitchen cabinets', 'cabinets'],  targetDay: 22 },
+  { name: 'Bathroom tile',              keywords: ['bathroom tile', 'shower tile', 'tile'], targetDay: 24 },
+  { name: 'Countertops installed',      keywords: ['countertops', 'counters'],       targetDay: 35 },
+  { name: 'Recessed lighting',          keywords: ['recessed', 'recess lights'],     targetDay: 30 },
+  { name: 'Interior paint',             keywords: ['interior paint', 'paint'],       targetDay: 42 },
+  { name: 'Exterior paint',             keywords: ['exterior paint'],                targetDay: 46 },
+  { name: 'Flooring complete',          keywords: ['flooring'],                      targetDay: 45 },
+  { name: 'HVAC',                       keywords: ['hvac'],                          targetDay: 40 },
+  { name: 'Roofing',                    keywords: ['roof', 'roofing'],               targetDay: 20 },
+  { name: 'Landscaping',                keywords: ['landscaping'],                   targetDay: 50 },
+  { name: 'Final inspection',           keywords: ['inspection'],                    targetDay: 60 },
+];
+
+/* ============================================================
+   HELPERS
+   ============================================================ */
+const $ = id => document.getElementById(id);
+const fmt  = n => '$' + Math.round(n || 0).toLocaleString();
+const fmtK = n => { n = n || 0; return '$' + (n >= 1000000 ? (n/1000000).toFixed(2) + 'M' : Math.round(n/1000) + 'K'); };
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+// Excel serial date -> JS Date. Excel epoch is 1899-12-30.
+function excelSerialToDate(serial) {
+  if (serial === null || serial === undefined || serial === '') return null;
+  const n = Number(serial);
+  if (!isNaN(n) && n > 1000) {
+    const epoch = new Date(Date.UTC(1899, 11, 30));
+    return new Date(epoch.getTime() + n * 86400000);
+  }
+  // Already a normal date string (e.g. "2026-06-18" or "4/22/2026")
+  const d = new Date(serial);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function dateLabel(d) {
+  if (!d) return '—';
+  return MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate();
+}
+
+function daysBetween(a, b) {
+  return Math.floor((Date.UTC(b.getUTCFullYear(), b.getUTCMonth(), b.getUTCDate()) -
+                      Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate())) / 86400000);
+}
+
+/* ============================================================
+   PROJECT REGISTRY (which tabs exist) — stored locally, list of project IDs
+   ============================================================ */
+function getProjectIds() {
+  try { var s = localStorage.getItem('dashboardProjectIds'); return s ? JSON.parse(s) : ['8294', '1524']; }
+  catch(e) { return ['8294', '1524']; }
+}
+function saveProjectIds(ids) { localStorage.setItem('dashboardProjectIds', JSON.stringify(ids)); }
+
+function getCache(projectId) {
+  try {
+    var raw = localStorage.getItem('dashCache_' + projectId);
+    if (!raw) return null;
+    var parsed = JSON.parse(raw);
+    var today = new Date().toISOString().split('T')[0];
+    if (parsed.cachedDate !== today) return null;
+    return parsed.data;
+  } catch(e) { return null; }
+}
+function setCache(projectId, data) {
+  var today = new Date().toISOString().split('T')[0];
+  localStorage.setItem('dashCache_' + projectId, JSON.stringify({ cachedDate: today, data: data }));
+}
+
+/* ============================================================
+   ADMIN OVERRIDES — milestone status overrides + sale data, per project
+   ============================================================ */
+// PASSCODE, adminUnlocked, pinBuffer defined in main script block
+
+function getOverrides(projectId) {
+  try { var s = localStorage.getItem('dashOverrides_' + projectId); return s ? JSON.parse(s) : { milestones: {}, sale: null }; }
+  catch(e) { return { milestones: {}, sale: null }; }
+}
+function saveOverrides(projectId, overrides) {
+  localStorage.setItem('dashOverrides_' + projectId, JSON.stringify(overrides));
+}
+function setMilestoneOverride(projectId, msName, status, date) {
+  const ov = getOverrides(projectId);
+  if (status === 'auto') {
+    delete ov.milestones[msName];
+  } else {
+    ov.milestones[msName] = { status: status, date: date || null };
+  }
+  saveOverrides(projectId, ov);
+}
+function markProjectSold(projectId, saleData) {
+  const ov = getOverrides(projectId);
+  ov.sale = saleData;
+  saveOverrides(projectId, ov);
+}
+function unmarkProjectSold(projectId) {
+  const ov = getOverrides(projectId);
+  ov.sale = null;
+  saveOverrides(projectId, ov);
+}
+function isProjectSold(projectId) {
+  const ov = getOverrides(projectId);
+  return !!ov.sale;
+}
+function deleteProjectTab(projectId) {
+  const ids = getProjectIds().filter(function(id) { return id !== projectId; });
+  saveProjectIds(ids);
+  localStorage.removeItem('dashCache_' + projectId);
+  localStorage.removeItem('dashOverrides_' + projectId);
+  var pg = $('page-' + projectId);
+  if (pg) pg.remove();
+}
+
+function openLockModal() {
+  if (adminUnlocked) {
+    adminUnlocked = false;
+    $('lock-btn').classList.remove('unlocked');
+    $('lock-btn').innerHTML = '&#128274;';
+    if (activeTab === '__labor') {
+      // Hide labor admin panel
+      var laborPanel = document.getElementById('admin-panel');
+      if (laborPanel) laborPanel.style.display = 'none';
+    } else if (activeTab && activeTab !== '__onboard' && activeTab !== '__receipt') {
+      renderAdminPanel(activeTab); // clears project admin panel
+    }
+    return;
+  }
+  pinBuffer = '';
+  updatePinDots();
+  $('pin-error').textContent = '';
+  $('lock-modal').style.display = 'flex';
+}
+function closeLockModal() { $('lock-modal').style.display = 'none'; pinBuffer = ''; updatePinDots(); }
+// (duplicate removed)
+function pinDel() { pinBuffer = pinBuffer.slice(0, -1); updatePinDots(); $('pin-error').textContent = ''; }
+function updatePinDots() {
+  for (var i = 0; i < 4; i++) {
+    var dot = $('pdot' + i);
+    if (dot) dot.classList.toggle('filled', i < pinBuffer.length);
+  }
+}
+
+/* ============================================================
+   TAB / PAGE RENDERING
+   ============================================================ */
+let activeTab = null;
+
+function buildTabBar() {
+  const ids = getProjectIds();
+  const sorted = ids.slice().sort(function(a, b) {
+    const aSold = isProjectSold(a) ? 1 : 0;
+    const bSold = isProjectSold(b) ? 1 : 0;
+    return aSold - bSold;
+  });
+  const bar = $('tab-bar');
+  bar.innerHTML = sorted.map(function(id) {
+    const cls = isProjectSold(id) ? 'tab completed' : 'tab';
+    return '<button class="' + cls + '" data-id="' + id + '" onclick="switchTab(\'' + id + '\')">' + id + '</button>';
+  }).join('') + '<div class="plus-tab-wrap"><button class="tab add-tab" id="plus-tab-btn" onclick="togglePlusMenu(event)" title="Add">+</button></div>';
+}
+
+function reorderTabs() {
+  buildTabBar();
+  document.querySelectorAll('.tab').forEach(function(t) {
+    t.classList.toggle('active', t.dataset.id === activeTab);
+  });
+}
+
+function ensurePageExists(projectId) {
+  if ($('page-' + projectId)) return;
+  const container = $('pages-container');
+  const div = document.createElement('div');
+  div.className = 'page';
+  div.id = 'page-' + projectId;
+  div.innerHTML = pageSkeletonHTML(projectId);
+  container.appendChild(div);
+}
+
+function pageSkeletonHTML(projectId) {
+  return `
+    <div class="state-block" id="state-${projectId}">
+      <div class="spinner"></div>
+      <div class="state-title">Loading project data…</div>
+      <div class="state-sub">Pulling labor totals from the tracker.</div>
+    </div>
+    <div id="content-${projectId}" style="display:none">
+      <div class="hdr">
+        <div>
+          <div class="hdr-title" id="title-${projectId}">—</div>
+          <div class="hdr-meta" id="meta-${projectId}"></div>
+        </div>
+        <div id="badge-${projectId}" class="badge not-started">Loading</div>
+      </div>
+
+      <div id="sold-banner-${projectId}"></div>
+
+      <div id="admin-panel-${projectId}"></div>
+
+      <div class="refresh-row">
+        <div class="sec" style="margin-bottom:0;flex:1">Deal Summary</div>
+        <button class="refresh-btn" onclick="loadProject('${projectId}', true)" style="margin-left:8px">Refresh</button>
+      </div>
+      <div class="deal-banner">
+        <div class="deal-left">
+          <div class="deal-item"><div class="deal-lbl">Purchase Price</div><div class="deal-val" id="deal-purchase-${projectId}">—</div></div>
+          <div class="deal-item"><div class="deal-lbl">Reno Spent PTD</div><div class="deal-val" id="deal-reno-${projectId}">—</div></div>
+          <div class="deal-item"><div class="deal-lbl">Total Invested</div><div class="deal-val" id="deal-invested-${projectId}">—</div></div>
+          <div class="deal-item"><div class="deal-lbl">Target Sale Price</div><div class="deal-val" id="deal-target-${projectId}">—</div></div>
+        </div>
+        <div class="deal-divider"></div>
+        <div class="deal-right">
+          <div class="deal-spread-lbl">Projected Profit</div>
+          <div class="deal-spread-val" id="deal-spread-${projectId}">—</div>
+        </div>
+      </div>
+
+      <div class="sec">Project to Date</div>
+      <div class="kpi-grid-ptd">
+        <div class="kpi-card"><div class="kpi-lbl">Labor PTD</div><div class="kpi-val" id="kpi-labor-${projectId}">$0</div></div>
+        <div class="kpi-card"><div class="kpi-lbl">Materials PTD</div><div class="kpi-val" id="kpi-mat-${projectId}">$0</div></div>
+        <div class="kpi-card"><div class="kpi-lbl">Misc PTD</div><div class="kpi-val" id="kpi-misc-${projectId}">$0</div></div>
+      </div>
+
+      <div class="kpi-grid-time">
+        <div class="kpi-card-time">
+          <div class="kpi-lbl">Days Elapsed</div>
+          <div class="kpi-val" id="kpi-elapsed-${projectId}">—</div>
+          <div class="kpi-sub" id="kpi-elapsed-sub-${projectId}"></div>
+          <div class="prog-track"><div class="prog-fill" id="time-bar-${projectId}" style="width:0%"></div></div>
+        </div>
+        <div class="kpi-card-time">
+          <div class="kpi-lbl">Days Remaining</div>
+          <div class="kpi-val" id="kpi-remain-${projectId}">—</div>
+          <div class="kpi-sub" id="kpi-remain-sub-${projectId}"></div>
+        </div>
+      </div>
+
+      <div class="sec">Project Timeline</div>
+      <div class="card">
+        <div class="week-scroll"><div id="week-strip-${projectId}" class="week-strip"></div></div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot" style="background:rgba(143,174,110,0.5)"></div>Completed</div>
+          <div class="legend-item"><div class="legend-dot" style="background:rgba(179,154,92,0.5)"></div>Current</div>
+          <div class="legend-item"><div class="legend-dot" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1)"></div>Upcoming</div>
+        </div>
+      </div>
+
+      <div class="sec">Spend Breakdown</div>
+      <div class="spend-row">
+        <div class="card">
+          <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.1em;color:var(--muted);text-transform:uppercase;margin-bottom:14px">Weekly Labor Cost</div>
+          <div class="chart-wrap" style="height:180px"><canvas id="laborChart-${projectId}"></canvas></div>
+        </div>
+        <div class="card">
+          <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.1em;color:var(--muted);text-transform:uppercase;margin-bottom:14px">Reno Spend vs Budget</div>
+          <div class="donut-row">
+            <div class="donut-wrap">
+              <canvas id="donutChart-${projectId}"></canvas>
+              <div class="donut-center"><div class="donut-num" id="donut-num-${projectId}">$0</div><div class="donut-lbl">RENO PTD</div></div>
+            </div>
+            <div class="legend">
+              <div class="legend-item"><div class="legend-dot" style="background:#8fae6e"></div>Labor</div>
+              <div class="legend-item"><div class="legend-dot" style="background:#6e8db0"></div>Materials</div>
+              <div class="legend-item"><div class="legend-dot" style="background:#b06a52"></div>Misc</div>
+              <div class="legend-item"><div class="legend-dot" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1)"></div>Remaining</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sec">Milestones</div>
+      <div class="card">
+        <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:10px" id="ms-summary-${projectId}"></div>
+        <div class="prog-track" style="margin-bottom:20px"><div class="prog-fill" id="ms-bar-${projectId}" style="width:0%;background:var(--accent)"></div></div>
+        <div id="ms-list-${projectId}"></div>
+      </div>
+
+      <div class="cache-note" id="cache-note-${projectId}" style="margin-top:8px"></div>
+    </div>
+    <div class="state-block" id="error-${projectId}" style="display:none">
+      <div class="state-title">Couldn't load this project</div>
+      <div class="state-sub" id="error-msg-${projectId}">Check the Power Automate URL in settings, or try refreshing.</div>
+      <button class="refresh-btn" style="margin-top:14px" onclick="loadProject('${projectId}', true)">Retry</button>
+    </div>
+  `;
+}
+
+function switchTab(idOrOnboard) {
+  document.querySelectorAll('.tab').forEach(function(t) {
+    const isOnboard = idOrOnboard === '__onboard' && t.classList.contains('add-tab');
+    const isReceipt = idOrOnboard === '__receipt' && t.classList.contains('add-tab');
+    const isLabor = idOrOnboard === '__labor' && t.classList.contains('add-tab');
+    t.classList.toggle('active', isOnboard || isReceipt || isLabor || t.dataset.id === idOrOnboard);
+  });
+  document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
+
+  if (idOrOnboard === '__onboard') {
+    $('page-onboard').classList.add('active');
+    activeTab = '__onboard';
+    return;
+  }
+
+  if (idOrOnboard === '__labor') {
+    $('page-labor').classList.add('active');
+    activeTab = '__labor';
+    initLaborTab();
+    return;
+  }
+
+  if (idOrOnboard === '__receipt') {
+    $('page-receipt').classList.add('active');
+    activeTab = '__receipt';
+    initReceiptTab();
+    return;
+  }
+
+  ensurePageExists(idOrOnboard);
+  $('page-' + idOrOnboard).classList.add('active');
+  activeTab = idOrOnboard;
+  loadProject(idOrOnboard, false);
+}
+
+/* ============================================================
+   DATA LOADING
+   ============================================================ */
+async function loadProject(projectId, forceRefresh) {
+  const stateEl = $('state-' + projectId);
+  const contentEl = $('content-' + projectId);
+  const errorEl = $('error-' + projectId);
+  if (errorEl) errorEl.style.display = 'none';
+
+  if (!forceRefresh) {
+    const cached = getCache(projectId);
+    if (cached) {
+      renderProject(projectId, cached, true);
+      return;
+    }
+  }
+
+  if (stateEl) stateEl.style.display = 'block';
+  if (contentEl) contentEl.style.display = 'none';
+
+  if (!DASHBOARD_DATA_URL) {
+    if (stateEl) stateEl.style.display = 'none';
+    if (errorEl) {
+      errorEl.style.display = 'block';
+      $('error-msg-' + projectId).textContent = 'No data source configured. Paste your Power Automate URL into localStorage as "dashboardDataUrl".';
+    }
+    return;
+  }
+
+  try {
+    const sep = DASHBOARD_DATA_URL.includes('?') ? '&' : '?';
+    const res = await fetch(DASHBOARD_DATA_URL + sep + 'projectId=' + encodeURIComponent(projectId));
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    setCache(projectId, data);
+    renderProject(projectId, data, false);
+  } catch (err) {
+    if (stateEl) stateEl.style.display = 'none';
+    if (errorEl) {
+      errorEl.style.display = 'block';
+      $('error-msg-' + projectId).textContent = 'Error: ' + err.message;
+    }
+  }
+}
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+function renderProject(projectId, data, fromCache) {
+  $('state-' + projectId).style.display = 'none';
+  $('error-' + projectId).style.display = 'none';
+  $('content-' + projectId).style.display = 'block';
+
+  const project = data.project || {};
+  const entries = data.entries || [];
+
+  const name = project.Name || ('Project ' + projectId);
+  const startDate = excelSerialToDate(project.StartDate) || new Date();
+  const totalWeeks = parseInt(project.Weeks) || 10;
+  const purchasePrice = parseFloat(project['Purchase Price'] || project.PurchasePrice) || 0;
+  const renoBudget = parseFloat(project.RenoBudget) || 0;
+  const targetSale = parseFloat(project.TargetSalePrice) || 0;
+
+  const today = new Date();
+  const todayUTC = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+  const startUTC = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate()));
+  const endUTC = new Date(startUTC); endUTC.setUTCDate(endUTC.getUTCDate() + totalWeeks * 7);
+
+  const elapsed = Math.max(0, daysBetween(startUTC, todayUTC));
+  const totalDays = totalWeeks * 7;
+  const remain = Math.max(0, totalDays - elapsed);
+  const timePct = Math.min(100, Math.round((elapsed / totalDays) * 100));
+  const curWeek = elapsed === 0 ? 1 : Math.min(totalWeeks, Math.floor(elapsed / 7) + 1);
+  const notStarted = todayUTC < startUTC;
+
+  const laborTotal = parseFloat(data.totalLabor) || 0;
+  const materialsTotal = parseFloat(data.materialsTotal) || 0;
+  const miscTotal = 0;      // not tracked yet
+  const renoSpent = laborTotal + materialsTotal + miscTotal;
+  const totalInvested = purchasePrice + renoSpent;
+  const projectedSpread = targetSale - totalInvested;
+
+  // Weekly labor buckets
+  const laborByWeek = new Array(totalWeeks).fill(0);
+  entries.forEach(function(e) {
+    const entryDate = excelSerialToDate(e.Date || e.date);
+    if (!entryDate) return;
+    const d = daysBetween(startUTC, new Date(Date.UTC(entryDate.getUTCFullYear(), entryDate.getUTCMonth(), entryDate.getUTCDate())));
+    const w = Math.floor(d / 7);
+    if (w >= 0 && w < totalWeeks) laborByWeek[w] += parseFloat(e.Pay || e.pay) || 0;
+  });
+
+  // Milestone detection from notes
+  const milestoneStatus = {};
+  MILESTONE_TEMPLATE.forEach(function(m) { milestoneStatus[m.name] = null; });
+  entries.forEach(function(e) {
+    const notes = (e.Notes || e.notes || '').toLowerCase();
+    if (!notes.includes('completed') && !notes.includes('done') && !notes.includes('finished')) return;
+    const entryDate = excelSerialToDate(e.Date || e.date);
+    MILESTONE_TEMPLATE.forEach(function(m) {
+      if (milestoneStatus[m.name]) return; // already marked
+      const hit = m.keywords.some(function(kw) { return notes.includes(kw); });
+      if (hit) milestoneStatus[m.name] = { date: entryDate, note: e.Notes || e.notes };
+    });
+  });
+
+  // Apply admin manual overrides on top of auto-detection
+  const overrides = getOverrides(projectId);
+  const manualStatus = {}; // msName -> 'done' | 'in-progress' | 'overdue' | 'auto'
+  MILESTONE_TEMPLATE.forEach(function(m) {
+    const ov = overrides.milestones[m.name];
+    if (!ov) return;
+    manualStatus[m.name] = ov.status;
+    if (ov.status === 'done') {
+      milestoneStatus[m.name] = { date: ov.date ? new Date(ov.date + 'T12:00:00Z') : null, note: 'Marked complete manually' };
+    } else if (ov.status !== 'done' && milestoneStatus[m.name]) {
+      // manual override says not-done but notes detected done -> manual wins, clear auto-done
+      milestoneStatus[m.name] = null;
+    }
+  });
+
+  const msDoneCount = Object.values(milestoneStatus).filter(Boolean).length;
+  const msOverdueCount = MILESTONE_TEMPLATE.filter(function(m) {
+    if (manualStatus[m.name] === 'in-progress') return false;
+    if (manualStatus[m.name] === 'overdue') return true;
+    return !milestoneStatus[m.name] && elapsed >= m.targetDay;
+  }).length;
+
+  function msStatus(m) {
+    if (manualStatus[m.name] === 'in-progress') return 'active';
+    if (manualStatus[m.name] === 'overdue') return 'overdue';
+    if (milestoneStatus[m.name]) return 'done';
+    if (elapsed >= m.targetDay) return 'overdue';
+    if (elapsed >= m.targetDay - 3) return 'active';
+    return 'future';
+  }
+
+  function health() {
+    if (overrides.sale) return { label: 'Sold', cls: 'ahead' };
+    if (notStarted) return { label: 'Not Started', cls: 'not-started' };
+    if (msOverdueCount === 0 && msDoneCount > 0) return { label: 'Ahead of Schedule', cls: 'ahead' };
+    if (msOverdueCount === 0) return { label: 'On Schedule', cls: 'on-track' };
+    if (msOverdueCount <= 2) return { label: 'At Risk', cls: 'at-risk' };
+    return { label: 'Behind Schedule', cls: 'behind' };
+  }
+
+  function dayDate(d) {
+    const dt = new Date(startUTC); dt.setUTCDate(dt.getUTCDate() + d - 1);
+    return dateLabel(dt);
+  }
+  function weekStartLabel(w) {
+    const s = new Date(startUTC); s.setUTCDate(s.getUTCDate() + (w-1)*7);
+    return dateLabel(s);
+  }
+
+  // ── Write to DOM ──
+  const h = health();
+  $('badge-' + projectId).textContent = h.label;
+  $('badge-' + projectId).className = 'badge ' + h.cls;
+  $('title-' + projectId).textContent = name;
+  $('meta-' + projectId).textContent = totalWeeks + '-WEEK FLIP · START ' + dateLabel(startUTC).toUpperCase() + (notStarted ? '' : ' · DAY ' + elapsed);
+
+  $('deal-purchase-' + projectId).textContent = fmtK(purchasePrice);
+  $('deal-reno-' + projectId).textContent = fmt(renoSpent);
+  $('deal-invested-' + projectId).textContent = fmtK(totalInvested);
+
+  if (overrides.sale) {
+    const actualSpread = parseFloat(overrides.sale.salePrice || 0) - totalInvested - parseFloat(overrides.sale.closingCosts || 0);
+    $('deal-target-' + projectId).textContent = fmtK(parseFloat(overrides.sale.salePrice || 0));
+    document.querySelector('#content-' + projectId + ' .deal-lbl').parentElement; // no-op, keep structure
+    $('deal-spread-' + projectId).textContent = fmt(actualSpread);
+  } else {
+    $('deal-target-' + projectId).textContent = fmtK(targetSale);
+    $('deal-spread-' + projectId).textContent = fmt(projectedSpread);
+  }
+
+  $('kpi-labor-' + projectId).textContent = fmt(laborTotal);
+  $('kpi-mat-' + projectId).textContent = fmt(materialsTotal);
+  $('kpi-misc-' + projectId).textContent = fmt(miscTotal);
+
+  $('kpi-elapsed-' + projectId).textContent = notStarted ? 'Not started' : elapsed + (elapsed === 1 ? ' day' : ' days');
+  $('kpi-remain-' + projectId).textContent = remain + ' days';
+  $('kpi-elapsed-sub-' + projectId).textContent = notStarted ? ('Starts ' + dateLabel(startUTC)) : (timePct + '% of timeline used');
+  $('kpi-remain-sub-' + projectId).textContent = 'Target finish ' + dateLabel(endUTC);
+  $('time-bar-' + projectId).style.width = timePct + '%';
+  $('time-bar-' + projectId).style.background = timePct > 80 ? 'var(--red)' : timePct > 55 ? 'var(--amber)' : 'var(--blue)';
+
+  // Week strip
+  let ws = '';
+  for (let w = 1; w <= totalWeeks; w++) {
+    const st = notStarted ? (w === 1 ? 'current' : 'future') : (w < curWeek ? 'done' : w === curWeek ? 'current' : 'future');
+    ws += '<div class="wk ' + st + '"><div class="wk-num">W' + w + '</div><div class="wk-date">' + weekStartLabel(w) + '</div></div>';
+  }
+  $('week-strip-' + projectId).innerHTML = ws;
+
+  // Donut chart
+  const donutCanvas = $('donutChart-' + projectId);
+  if (donutCanvas._chart) donutCanvas._chart.destroy();
+  const hasSpend = renoSpent > 0;
+  donutCanvas._chart = new Chart(donutCanvas.getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Labor', 'Materials', 'Misc', 'Remaining Budget'],
+      datasets: [{
+        data: hasSpend ? [laborTotal, materialsTotal, miscTotal, Math.max(0, renoBudget - renoSpent)] : [0,0,0,1],
+        backgroundColor: hasSpend
+          ? ['#8fae6e', '#6e8db0', '#b06a52', 'rgba(255,255,255,0.05)']
+          : ['rgba(255,255,255,0.03)','rgba(255,255,255,0.025)','rgba(255,255,255,0.02)','rgba(255,255,255,0.05)'],
+        borderColor: '#0c0d10', borderWidth: 3, hoverOffset: 4,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '72%',
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ' ' + ctx.label + ': ' + fmt(ctx.raw) } } }
+    }
+  });
+  $('donut-num-' + projectId).textContent = fmt(renoSpent);
+
+  // Labor bar chart
+  const laborCanvas = $('laborChart-' + projectId);
+  if (laborCanvas._chart) laborCanvas._chart.destroy();
+  laborCanvas._chart = new Chart(laborCanvas.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: laborByWeek.map((_, i) => 'W' + (i+1)),
+      datasets: [{
+        data: laborByWeek,
+        backgroundColor: laborByWeek.map((_, i) => i+1 < curWeek ? 'rgba(143,174,110,0.5)' : i+1 === curWeek ? 'rgba(179,154,92,0.5)' : 'rgba(255,255,255,0.04)'),
+        borderColor: laborByWeek.map((_, i) => i+1 < curWeek ? '#8fae6e' : i+1 === curWeek ? '#b39a5c' : 'rgba(255,255,255,0.08)'),
+        borderWidth: 1, borderRadius: 5,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#565b6b', font: { family: 'DM Mono', size: 10 } } },
+        y: { grid: { color: 'rgba(255,255,255,0.03)' }, beginAtZero: true, ticks: { color: '#565b6b', font: { family: 'DM Mono', size: 10 }, callback: v => v===0?'$0':'$'+v/1000+'K' } }
+      }
+    }
+  });
+
+  // Milestones
+  const msPct = Math.round((msDoneCount / MILESTONE_TEMPLATE.length) * 100);
+  $('ms-bar-' + projectId).style.width = msPct + '%';
+  $('ms-summary-' + projectId).textContent = msDoneCount + ' of ' + MILESTONE_TEMPLATE.length + ' complete' + (msOverdueCount > 0 ? '  ·  ' + msOverdueCount + ' overdue' : '');
+
+  const pillLabel = { done: 'Complete', active: 'Due Soon', overdue: 'Overdue', future: 'Upcoming' };
+  $('ms-list-' + projectId).innerHTML = MILESTONE_TEMPLATE.map(function(m) {
+    const st = msStatus(m);
+    const doneInfo = milestoneStatus[m.name];
+    const dayText = doneInfo && doneInfo.date ? dateLabel(doneInfo.date) : ('Day ' + m.targetDay + '<br>' + dayDate(m.targetDay));
+    return '<div class="ms-item">'
+      + '<div class="ms-day">' + dayText + '</div>'
+      + '<div class="ms-dot ' + st + '"></div>'
+      + '<div class="ms-name ' + st + '">' + m.name + '</div>'
+      + '<div class="ms-pill ' + st + '">' + pillLabel[st] + '</div>'
+      + '</div>';
+  }).join('');
+
+  $('cache-note-' + projectId).textContent = fromCache
+    ? 'Showing today\u2019s cached data.'
+    : 'Refreshed just now.';
+
+  // Sold banner
+  const soldBannerEl = $('sold-banner-' + projectId);
+  if (overrides.sale) {
+    soldBannerEl.innerHTML = '<div class="sold-banner"><span class="sold-banner-icon">&#10003;</span><span class="sold-banner-text">SOLD ' + (overrides.sale.saleDate ? 'ON ' + dateLabel(new Date(overrides.sale.saleDate + 'T12:00:00Z')).toUpperCase() : '') + ' &middot; ' + fmt(overrides.sale.salePrice) + '</span></div>';
+  } else {
+    soldBannerEl.innerHTML = '';
+  }
+
+  // Store latest computed numbers on the project element for admin panel access
+  document.querySelector('#page-' + projectId).dataset.totalInvested = totalInvested;
+  document.querySelector('#page-' + projectId).dataset.purchasePrice = purchasePrice;
+
+  if (adminUnlocked) renderAdminPanel(projectId);
+}
+
+/* ============================================================
+   ADMIN PANEL — milestone overrides, mark as sold, delete project
+   ============================================================ */
+function renderAdminPanel(projectId) {
+  const panelEl = $('admin-panel-' + projectId);
+  if (!panelEl) return;
+  if (!adminUnlocked) { panelEl.innerHTML = ''; return; }
+
+  const overrides = getOverrides(projectId);
+  const sale = overrides.sale;
+
+  let html = '<div class="admin-panel">';
+  html += '<div class="admin-panel-title">&#9881; Admin</div>';
+
+  // Milestones
+  html += '<div class="admin-field-label" style="margin-bottom:8px">Milestones</div>';
+  MILESTONE_TEMPLATE.forEach(function(m) {
+    const ov = overrides.milestones[m.name];
+    const currentStatus = ov ? ov.status : 'auto';
+    const currentDate = ov && ov.date ? ov.date : '';
+    const safeId = m.name.replace(/[^a-zA-Z0-9]/g, '');
+    html += '<div class="admin-row">'
+      + '<span class="admin-ms-name">' + m.name + '</span>'
+      + '<input type="date" class="admin-date-input" id="msdate-' + projectId + '-' + safeId + '" value="' + currentDate + '" />'
+      + '<select class="admin-select" id="msstat-' + projectId + '-' + safeId + '">'
+      + '<option value="auto"' + (currentStatus==='auto'?' selected':'') + '>Auto</option>'
+      + '<option value="in-progress"' + (currentStatus==='in-progress'?' selected':'') + '>In Progress</option>'
+      + '<option value="overdue"' + (currentStatus==='overdue'?' selected':'') + '>Overdue</option>'
+      + '<option value="done"' + (currentStatus==='done'?' selected':'') + '>Complete</option>'
+      + '</select>'
+      + '<button class="admin-btn-outline" style="padding:5px 10px;font-size:11px" onclick="applyMilestoneOverride(\'' + projectId + '\',\'' + safeId.replace(/'/g,"\\'") + '\',\'' + m.name.replace(/'/g,"\\'") + '\')">Set</button>'
+      + '</div>';
+  });
+
+  html += '<div class="admin-divider"></div>';
+
+  // Mark as sold
+  if (sale) {
+    html += '<div class="admin-field-label" style="margin-bottom:8px">Sale Recorded</div>';
+    html += '<div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.6">'
+      + 'Sold ' + fmt(sale.salePrice) + ' on ' + (sale.saleDate || '—') + '<br>'
+      + 'Closing costs: ' + fmt(sale.closingCosts) + '<br>'
+      + (sale.notes ? 'Notes: ' + sale.notes : '')
+      + '</div>';
+    html += '<button class="admin-btn-outline" onclick="unmarkSold(\'' + projectId + '\')">Undo Sold Status</button>';
+  } else {
+    html += '<div class="admin-field-label" style="margin-bottom:8px">Mark Flip as Sold</div>';
+    html += '<div class="admin-sale-grid">'
+      + '<div><label class="admin-field-label">Sale Price</label><input class="ob-input" id="sale-price-' + projectId + '" type="number" placeholder="850000" /></div>'
+      + '<div><label class="admin-field-label">Closing Costs</label><input class="ob-input" id="sale-closing-' + projectId + '" type="number" placeholder="42000" /></div>'
+      + '<div><label class="admin-field-label">Sale Date</label><input class="ob-input" id="sale-date-' + projectId + '" type="date" /></div>'
+      + '<div><label class="admin-field-label">Notes (optional)</label><input class="ob-input" id="sale-notes-' + projectId + '" placeholder="Buyer, agent, etc." /></div>'
+      + '</div>';
+    html += '<button class="admin-btn" onclick="markSold(\'' + projectId + '\')">Mark as Sold</button>';
+  }
+
+  html += '<div class="admin-divider"></div>';
+  html += '<button class="admin-btn-danger" onclick="confirmDeleteProject(\'' + projectId + '\')">Delete This Project Tab</button>';
+
+  html += '</div>';
+  panelEl.innerHTML = html;
+}
+
+function applyMilestoneOverride(projectId, safeId, msName) {
+  const status = $('msstat-' + projectId + '-' + safeId).value;
+  const date = $('msdate-' + projectId + '-' + safeId).value;
+  setMilestoneOverride(projectId, msName, status, date);
+  const cached = getCache(projectId);
+  if (cached) renderProject(projectId, cached, true);
+}
+
+function markSold(projectId) {
+  const salePrice = parseFloat($('sale-price-' + projectId).value) || 0;
+  const closingCosts = parseFloat($('sale-closing-' + projectId).value) || 0;
+  const saleDate = $('sale-date-' + projectId).value;
+  const notes = $('sale-notes-' + projectId).value.trim();
+  if (!salePrice || !saleDate) { alert('Sale price and sale date are required.'); return; }
+  markProjectSold(projectId, { salePrice: salePrice, closingCosts: closingCosts, saleDate: saleDate, notes: notes });
+  reorderTabs();
+  const cached = getCache(projectId);
+  if (cached) renderProject(projectId, cached, true);
+}
+function unmarkSold(projectId) {
+  unmarkProjectSold(projectId);
+  reorderTabs();
+  const cached = getCache(projectId);
+  if (cached) renderProject(projectId, cached, true);
+}
+function confirmDeleteProject(projectId) {
+  if (!confirm('Delete the dashboard tab for project ' + projectId + '? This only removes it from this dashboard view — Excel data is untouched.')) return;
+  deleteProjectTab(projectId);
+  buildTabBar();
+  const remaining = getProjectIds();
+  if (remaining.length) switchTab(remaining[0]);
+}
+
+
+
+
+/* ============================================================
+   LABOR ENTRY — embedded in dashboard
+   All functions prefixed/namespaced to avoid conflicts
+   ============================================================ */
+
+var DEFAULT_CREW = [
+  { name: 'David G', rate: 300 },
+  { name: 'Ernesto', rate: 300 },
+  { name: 'Rami',    rate: 260 },
+  { name: 'Jose',    rate: 400 },
+];
+var LABOR_DEFAULT_PROJECTS = [
+  { name: '8294 E Carburton', id: '8294' },
+  { name: '1524 W 223rd',     id: '1524' },
+  { name: 'Ivy Park Fullerton', id: 'IPFUL' },
+  { name: 'Ivy Park Tustin',  id: 'IPTUS' },
+  { name: 'Unspecified',      id: 'UNSPEC' },
+];
+// PASSCODE defined in dashboard scope
+
+function getCrew()     { try { var s = localStorage.getItem('adminCrew');     return s ? JSON.parse(s) : DEFAULT_CREW.slice(); }     catch(e) { return DEFAULT_CREW.slice(); } }
+function saveCrew(c)   { localStorage.setItem('adminCrew', JSON.stringify(c)); }
+function getLaborProjects() { try { var s = localStorage.getItem('adminProjects'); return s ? JSON.parse(s) : LABOR_DEFAULT_PROJECTS.slice(); } catch(e) { return LABOR_DEFAULT_PROJECTS.slice(); } }
+function saveLaborProjects(p) { localStorage.setItem('adminProjects', JSON.stringify(p)); }
+function getDefaultLoc() {
+  var stored = localStorage.getItem('defaultLocation');
+  var projects = getLaborProjects();
+  if (stored && projects.some(function(p) { return p.name === stored; })) return stored;
+  return projects.length ? projects[0].name : '';
+}
+function setDefaultLoc(v) { localStorage.setItem('defaultLocation', v); }
+function getProjectIdByName(name) {
+  var projects = getLaborProjects();
+  var match = projects.find(function(p) { return p.name === name; });
+  return match ? match.id : '';
+}
+function getAzureUrl()   { return localStorage.getItem('azureFnUrl') || ''; }
+function setAzureUrl(v)  { localStorage.setItem('azureFnUrl', v); }
+
+var state = {};
+var extraCount = 0;
+var pendingEntries = null;
+var adminUnlocked = false;
+var lastSyncedPayload = null;
+
+var today = new Date();
+var todayInput = document.getElementById('today-date');
+todayInput.value = today.toISOString().split('T')[0];
+function getDateStr() { return todayInput.value || today.toISOString().split('T')[0]; }
+
+function getLog()      { try { var r = localStorage.getItem('laborLog'); return r ? JSON.parse(r) : {}; } catch(e) { return {}; } }
+function saveLog(log)  { localStorage.setItem('laborLog', JSON.stringify(log)); }
+function getSyncMeta() { try { var r = localStorage.getItem('syncMeta'); return r ? JSON.parse(r) : {}; } catch(e) { return {}; } }
+function saveSyncMeta(m) { localStorage.setItem('syncMeta', JSON.stringify(m)); }
+
+(function() {
+  try {
+    var raw = localStorage.getItem('laborLog');
+    if (!raw) return;
+    var parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      var m = {};
+      parsed.forEach(function(e) { if (!e.date) return; if (!m[e.date]) m[e.date] = []; m[e.date].push(e); });
+      localStorage.setItem('laborLog', JSON.stringify(m));
+    }
+  } catch(e) { localStorage.removeItem('laborLog'); }
+})();
+
+// Migrate adminProjects from plain strings to {name, id} objects
+(function() {
+  try {
+    var raw = localStorage.getItem('adminProjects');
+    if (!raw) return;
+    var parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length && typeof parsed[0] === 'string') {
+      var migrated = parsed.map(function(name) { return { name: name, id: '' }; });
+      localStorage.setItem('adminProjects', JSON.stringify(migrated));
+    }
+  } catch(e) {}
+})();
+
+function projectOptions(sel) {
+  return getLaborProjects().map(function(p) {
+    return '<option value="' + p.name + '"'+ (sel === p.name ? ' selected' : '') + '>' + p.name + '</option>';
+  }).join('');
+}
+
+// ── Sync status ──────────────────────────────────────────────
+function setSyncState(state, text) {
+  var dot = document.getElementById('sync-dot');
+  var txt = document.getElementById('sync-text');
+  var retry = document.getElementById('retry-btn');
+  dot.className = 'sync-dot' + (state ? ' ' + state : '');
+  txt.textContent = text;
+  retry.style.display = (state === 'failed' || state === 'pending') ? 'inline-block' : 'none';
+}
+
+function updateSyncBarFromMeta() {
+  var meta = getSyncMeta();
+  var dateKey = getDateStr();
+  var entry = meta[dateKey];
+  if (!entry) { setSyncState('', 'Not synced yet'); return; }
+  if (entry.status === 'synced')  setSyncState('synced',  'Synced ✔ ' + entry.time);
+  if (entry.status === 'pending') setSyncState('pending', 'Pending — tap Retry');
+  if (entry.status === 'failed')  setSyncState('failed',  'Sync failed — tap Retry');
+}
+
+todayInput.addEventListener('change', function() { updateSyncBarFromMeta(); renderLog(); });
+
+async function pushToAzure(payload, dateKey) {
+  var url = getAzureUrl();
+  if (!url) {
+    markSync(dateKey, 'pending', null);
+    setSyncState('pending', 'No Azure URL set — saved locally');
+    return;
+  }
+  setSyncState('syncing', 'Syncing…');
+  document.getElementById('submit-btn').disabled = true;
+  try {
+    var res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    var now = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    markSync(dateKey, 'synced', now);
+    setSyncState('synced', 'Synced ✔ ' + now);
+    renderLog();
+  } catch(err) {
+    markSync(dateKey, 'failed', null);
+    setSyncState('failed', 'Sync failed — tap Retry');
+    renderLog();
+  } finally {
+    document.getElementById('submit-btn').disabled = false;
+  }
+}
+
+function markSync(dateKey, status, time) {
+  var meta = getSyncMeta();
+  meta[dateKey] = { status: status, time: time };
+  saveSyncMeta(meta);
+}
+
+function retrySync() {
+  var meta = getSyncMeta();
+  var dateKey = getDateStr();
+  var log = getLog();
+  var entries = Array.isArray(log[dateKey]) ? log[dateKey] : [];
+  if (!entries.length) { setSyncState('', 'Nothing to sync for this date'); return; }
+  var payload = { date: dateKey, entries: entries };
+  pushToAzure(payload, dateKey);
+}
+
+// ── Entry form ────────────────────────────────────────────────
+function makeSegment(id) {
+  var wrap = document.createElement('div');
+  wrap.className = 'seg'; wrap.id = 'seg-' + id;
+  var full = document.createElement('button');
+  full.textContent = 'Full'; full.className = 'on-full';
+  full.onclick = function() { setShift(id, 'full'); };
+  var half = document.createElement('button');
+  half.textContent = 'Half';
+  half.onclick = function() { setShift(id, 'half'); };
+  wrap.appendChild(full); wrap.appendChild(half);
+  return wrap;
+}
+
+function setShift(id, shift) {
+  state[id].shift = state[id].shift === shift ? null : shift;
+  var seg = document.getElementById('seg-' + id);
+  seg.children[0].className = state[id].shift === 'full' ? 'on-full' : '';
+  seg.children[1].className = state[id].shift === 'half' ? 'on-half' : '';
+  updateTotal();
+}
+
+function buildCrewRow(worker, id) {
+  var defLoc = getDefaultLoc();
+  state[id] = { name: worker.name, rate: worker.rate, location: defLoc, shift: 'full' };
+  var row = document.createElement('div'); row.className = 'grid-row';
+  var nameCell = document.createElement('div'); nameCell.className = 'cell name-cell'; nameCell.textContent = worker.name;
+  var locCell = document.createElement('div'); locCell.className = 'cell loc-cell';
+  var sel = document.createElement('select'); sel.innerHTML = projectOptions(defLoc);
+  sel.addEventListener('change', function(e) { state[id].location = e.target.value; updateTotal(); });
+  locCell.appendChild(sel);
+  var shiftCell = document.createElement('div'); shiftCell.className = 'cell shift-cell'; shiftCell.appendChild(makeSegment(id));
+  var delCell = document.createElement('div'); delCell.className = 'cell del-cell';
+  row.appendChild(nameCell); row.appendChild(locCell); row.appendChild(shiftCell); row.appendChild(delCell);
+  return row;
+}
+
+function rebuildCrewRows() {
+  var container = document.getElementById('crew-rows');
+  container.innerHTML = ''; state = {};
+  getCrew().forEach(function(w, i) { container.appendChild(buildCrewRow(w, 'c' + i)); });
+  updateTotal();
+}
+
+function addExtra() {
+  var id = 'extra' + extraCount++;
+  var defLoc = getDefaultLoc();
+  state[id] = { name: '', rate: 0, location: defLoc, shift: 'full' };
+  var row = document.createElement('div'); row.className = 'grid-row';
+  var nameCell = document.createElement('div'); nameCell.className = 'cell name-cell';
+  nameCell.style.cssText = 'flex-direction:column;align-items:flex-start;gap:2px;';
+  var nameInp = document.createElement('input'); nameInp.className = 'extra-name'; nameInp.placeholder = 'Name';
+  nameInp.addEventListener('input', function(e) { state[id].name = e.target.value.trim(); updateTotal(); });
+  var rateInp = document.createElement('input'); rateInp.className = 'extra-rate'; rateInp.type = 'number'; rateInp.placeholder = 'Day rate';
+  rateInp.addEventListener('input', function(e) { state[id].rate = parseFloat(e.target.value) || 0; updateTotal(); });
+  nameCell.appendChild(nameInp); nameCell.appendChild(rateInp);
+  var locCell = document.createElement('div'); locCell.className = 'cell loc-cell';
+  var sel = document.createElement('select'); sel.innerHTML = projectOptions(defLoc);
+  sel.addEventListener('change', function(e) { state[id].location = e.target.value; updateTotal(); });
+  locCell.appendChild(sel);
+  var shiftCell = document.createElement('div'); shiftCell.className = 'cell shift-cell'; shiftCell.appendChild(makeSegment(id));
+  var delCell = document.createElement('div'); delCell.className = 'cell del-cell';
+  var delBtn = document.createElement('button'); delBtn.className = 'del-btn'; delBtn.textContent = '×';
+  delBtn.onclick = function() { row.remove(); delete state[id]; updateTotal(); };
+  delCell.appendChild(delBtn);
+  row.appendChild(nameCell); row.appendChild(locCell); row.appendChild(shiftCell); row.appendChild(delCell);
+  document.getElementById('crew-rows').appendChild(row);
+  nameInp.focus();
+}
+
+function updateTotal() {
+  var total = 0;
+  Object.values(state).forEach(function(w) {
+    if (!w.rate || !w.location || !w.shift) return;
+    total += w.shift === 'full' ? w.rate : w.rate / 2;
+  });
+  document.getElementById('grand-total').textContent = '$' + total.toLocaleString('en-US');
+}
+
+function submitLog() {
+  var entries = Object.values(state).filter(function(w) { return w.name && w.location && w.shift; });
+  var s = document.getElementById('status-msg');
+  if (!entries.length) { s.className = 'status error'; s.textContent = 'No team members ready to log.'; return; }
+  var log = getLog();
+  var existing = Array.isArray(log[getDateStr()]) ? log[getDateStr()] : [];
+  if (existing.length > 0) {
+    pendingEntries = entries;
+    var total = existing.reduce(function(sum, e) { return sum + (e.pay || 0); }, 0);
+    document.getElementById('dup-modal-msg').textContent =
+      'A log for this date already has ' + existing.length + ' entr' + (existing.length > 1 ? 'ies' : 'y') + ' totalling $' + total.toLocaleString() + '. Overwrite with current entries?';
+    document.getElementById('dup-modal').style.display = 'flex';
+    return;
+  }
+  saveEntries(entries, log);
+}
+
+function closeModal() { document.getElementById('dup-modal').style.display = 'none'; pendingEntries = null; }
+function confirmOverwrite() {
+  var log = getLog();
+  closeModal();
+  // Re-read current state at time of confirmation
+  var currentEntries = Object.values(state).filter(function(w) { return w.name && w.location && w.shift; });
+  saveEntries(currentEntries.length ? currentEntries : pendingEntries, log);
+}
+
+function saveEntries(entries, log) {
+  var notesVal = document.getElementById('notes-field').value.trim();
+  var dateKey = getDateStr();
+  log[dateKey] = entries.map(function(w) {
+    return { date: dateKey, name: w.name, location: w.location, locationId: getProjectIdByName(w.location), shift: w.shift,
+             hours: w.shift === 'full' ? 8 : 4, pay: w.shift === 'full' ? w.rate : w.rate / 2,
+             rate: w.rate, notes: notesVal };
+  });
+  saveLog(log);
+  var total = entries.reduce(function(sum, w) { return sum + (w.shift === 'full' ? w.rate : w.rate / 2); }, 0);
+  var s = document.getElementById('status-msg');
+  s.className = 'status success';
+  s.textContent = 'Saved ' + entries.length + ' entr' + (entries.length > 1 ? 'ies' : 'y') + ' — $' + total.toLocaleString() + ' for ' + dateKey + '.';
+  renderLog();
+  var payload = { date: dateKey, entries: log[dateKey] };
+  pushToAzure(payload, dateKey);
+}
+
+// ── Log accordion ─────────────────────────────────────────────
+function toggleDay(safeKey) {
+  var detail = document.getElementById('detail-' + safeKey);
+  var chevron = document.getElementById('chev-' + safeKey);
+  var open = detail.classList.toggle('open');
+  chevron.classList.toggle('open', open);
+}
+
+function renderLog() {
+  var log = getLog();
+  var meta = getSyncMeta();
+  var list = document.getElementById('log-list');
+  var empty = document.getElementById('log-empty');
+  if (!list || !empty) return;
+  var dates = Object.keys(log).sort(function(a,b) { return b.localeCompare(a); });
+  if (!dates.length) { list.innerHTML = ''; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+
+  list.innerHTML = dates.map(function(d) {
+    var entries = Array.isArray(log[d]) ? log[d] : [];
+    if (!entries.length) return '';
+    var total = entries.reduce(function(s, e) { return s + (e.pay || 0); }, 0);
+    var label = new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+    var safeKey = d.replace(/-/g, '');
+    var syncInfo = meta[d] || {};
+    var syncBadge = '';
+    if (syncInfo.status === 'synced')  syncBadge = '<span class="day-sync synced">synced</span>';
+    if (syncInfo.status === 'pending') syncBadge = '<span class="day-sync pending">pending</span>';
+    if (syncInfo.status === 'failed')  syncBadge = '<span class="day-sync failed">failed</span>';
+    var notesHtml = (entries[0] && entries[0].notes)
+      ? '<div style="font-size:12px;color:var(--text3);padding:7px 14px 8px 24px;border-top:1px solid var(--border);font-style:italic;">' + entries[0].notes + '</div>'
+      : '';
+    return '<div>'
+      + '<div class="day-summary" onclick="toggleDay(\'' + safeKey + '\')">'
+      + '<div class="day-left"><span class="day-date">' + label + '</span><span class="day-meta">' + entries.length + ' member' + (entries.length > 1 ? 's' : '') + '</span></div>'
+      + '<div class="day-right">' + syncBadge + '<span class="day-total">$' + total.toLocaleString() + '</span><span class="chevron" id="chev-' + safeKey + '">▾</span></div>'
+      + '</div>'
+      + '<div class="day-detail" id="detail-' + safeKey + '">'
+      + '<div class="detail-head"><span>Member</span><span>Location</span><span>Day</span><span>Pay</span></div>'
+      + '<div id="rows-' + safeKey + '"></div>'
+      + '<button class="detail-add" onclick="showInlineAdd(\'' + d + '\',\'' + safeKey + '\')">+ Add member</button>'
+      + notesHtml
+      + '</div></div>';
+  }).join('');
+
+  dates.forEach(function(d) {
+    var entries = Array.isArray(log[d]) ? log[d] : [];
+    var safeKey = d.replace(/-/g, '');
+    var container = document.getElementById('rows-' + safeKey);
+    if (!container) return;
+    entries.forEach(function(e, idx) { container.appendChild(makeSwipeRow(e, d, idx)); });
+  });
+}
+
+function makeSwipeRow(e, dateKey, idx) {
+  var wrap = document.createElement('div'); wrap.className = 'swipe-wrap';
+  var actions = document.createElement('div'); actions.className = 'action-btns';
+  var editBtn = document.createElement('button'); editBtn.className = 'btn-edit'; editBtn.textContent = 'Edit';
+  editBtn.onclick = function() { activateEdit(wrap, dateKey, idx); };
+  var delBtn = document.createElement('button'); delBtn.className = 'btn-del'; delBtn.textContent = 'Delete';
+  delBtn.onclick = function() { deleteEntry(dateKey, idx); };
+  actions.appendChild(editBtn); actions.appendChild(delBtn);
+  var row = document.createElement('div'); row.className = 'detail-row';
+  row.innerHTML = '<span>' + e.name + '</span><span>' + e.location + '</span><span>' + (e.shift === 'full' ? 'Full' : 'Half') + '</span><span>$' + (e.pay||0).toLocaleString() + '</span>';
+  var startX = 0, swiped = false;
+  function onStart(x) { startX = x; }
+  function onMove(x) {
+    var dx = x - startX;
+    if (swiped) { row.style.transform = 'translateX(' + (-144 + Math.max(0, Math.min(144, dx))) + 'px)'; }
+    else if (dx < -10) { row.style.transition = 'none'; row.style.transform = 'translateX(' + Math.max(-144, dx) + 'px)'; }
+  }
+  function onEnd(x) {
+    var dx = x - startX;
+    row.style.transition = 'transform 0.22s ease';
+    if (!swiped && dx < -50) { row.style.transform = 'translateX(-144px)'; swiped = true; }
+    else if (swiped && dx > 50) { row.style.transform = 'translateX(0)'; swiped = false; }
+    else { row.style.transform = swiped ? 'translateX(-144px)' : 'translateX(0)'; }
+  }
+  row.addEventListener('touchstart', function(ev) { onStart(ev.touches[0].clientX); }, { passive: true });
+  row.addEventListener('touchmove',  function(ev) { onMove(ev.touches[0].clientX); },  { passive: true });
+  row.addEventListener('touchend',   function(ev) { onEnd(ev.changedTouches[0].clientX); });
+  var md = false;
+  row.addEventListener('mousedown', function(ev) { md = true; onStart(ev.clientX); row.style.transition = 'none'; });
+  window.addEventListener('mousemove', function(ev) { if (md) onMove(ev.clientX); });
+  window.addEventListener('mouseup',   function(ev) { if (md) { md = false; onEnd(ev.clientX); } });
+  wrap.appendChild(actions); wrap.appendChild(row);
+  return wrap;
+}
+
+function activateEdit(wrap, dateKey, idx) {
+  var log = getLog(); var e = log[dateKey][idx];
+  var safeKey = dateKey.replace(/-/g, '');
+  var row = wrap.querySelector('.detail-row');
+  row.style.transform = 'translateX(0)'; row.className = 'detail-row edit-mode';
+  var rate = e.rate || (e.shift === 'full' ? e.pay : e.pay * 2);
+  row.innerHTML = '<input id="ei-name-' + safeKey + '-' + idx + '" value="' + e.name + '" placeholder="Name" />' 
+    + '<select id="ei-loc-' + safeKey + '-' + idx + '">' + projectOptions(e.location) + '</select>'
+    + '<select id="ei-shift-' + safeKey + '-' + idx + '"><option value="full"' + (e.shift==='full'?' selected':'') + '>Full</option><option value="half"' + (e.shift==='half'?' selected':'') + '>Half</option></select>'
+    + '<button class="save-btn" onclick="saveEdit(\'' + dateKey + '\',' + idx + ',' + rate + ')">Save</button>';
+  document.getElementById('ei-name-' + safeKey + '-' + idx).focus();
+}
+
+function saveEdit(dateKey, idx, rate) {
+  var safeKey = dateKey.replace(/-/g, '');
+  var name  = document.getElementById('ei-name-' + safeKey + '-' + idx).value.trim();
+  var loc   = document.getElementById('ei-loc-' + safeKey + '-' + idx).value;
+  var shift = document.getElementById('ei-shift-' + safeKey + '-' + idx).value;
+  if (!name || !loc) return;
+  var log = getLog();
+  log[dateKey][idx] = { date: dateKey, name: name, location: loc, locationId: getProjectIdByName(loc), shift: shift, hours: shift === 'full' ? 8 : 4, pay: shift === 'full' ? rate : rate / 2, rate: rate };
+  saveLog(log); renderLog();
+  var detail = document.getElementById('detail-' + safeKey);
+  if (detail) { detail.classList.add('open'); var chev = document.getElementById('chev-' + safeKey); if (chev) chev.classList.add('open'); }
+  var payload = { date: dateKey, entries: log[dateKey] };
+  pushToAzure(payload, dateKey);
+}
+
+function deleteEntry(dateKey, idx) {
+  var log = getLog();
+  log[dateKey].splice(idx, 1);
+  if (!log[dateKey].length) delete log[dateKey];
+  saveLog(log); renderLog();
+  var safeKey = dateKey.replace(/-/g, '');
+  var detail = document.getElementById('detail-' + safeKey);
+  if (detail) { detail.classList.add('open'); var chev = document.getElementById('chev-' + safeKey); if (chev) chev.classList.add('open'); }
+  if (log[dateKey]) {
+    var payload = { date: dateKey, entries: log[dateKey] };
+    pushToAzure(payload, dateKey);
+  }
+}
+
+function showInlineAdd(dateKey, safeKey) {
+  var existing = document.getElementById('inline-add-' + safeKey);
+  if (existing) { existing.remove(); return; }
+  var addBtn = document.querySelector('#detail-' + safeKey + ' .detail-add');
+  var form = document.createElement('div');
+  form.className = 'inline-add-row'; form.id = 'inline-add-' + safeKey;
+  form.innerHTML = '<input id="ia-name-' + safeKey + '" placeholder="Name" />' 
+    + '<select id="ia-loc-' + safeKey + '">' + projectOptions(getDefaultLoc()) + '</select>'
+    + '<select id="ia-shift-' + safeKey + '"><option value="full">Full</option><option value="half">Half</option></select>'
+    + '<button class="save-btn" onclick="saveInlineAdd(\'' + dateKey + '\',\'' + safeKey + '\')">Add</button>';
+  addBtn.parentNode.insertBefore(form, addBtn);
+  document.getElementById('ia-name-' + safeKey).focus();
+}
+
+function saveInlineAdd(dateKey, safeKey) {
+  var name  = document.getElementById('ia-name-' + safeKey).value.trim();
+  var loc   = document.getElementById('ia-loc-' + safeKey).value;
+  var shift = document.getElementById('ia-shift-' + safeKey).value;
+  if (!name || !loc) return;
+  var crew = getCrew();
+  var match = crew.find(function(c) { return c.name.toLowerCase() === name.toLowerCase(); });
+  var rate = match ? match.rate : 0;
+  var log = getLog();
+  if (!log[dateKey]) log[dateKey] = [];
+  log[dateKey].push({ date: dateKey, name: name, location: loc, locationId: getProjectIdByName(loc), shift: shift, hours: shift === 'full' ? 8 : 4, pay: shift === 'full' ? rate : rate / 2, rate: rate });
+  saveLog(log); renderLog();
+  var detail = document.getElementById('detail-' + safeKey);
+  if (detail) { detail.classList.add('open'); var chev = document.getElementById('chev-' + safeKey); if (chev) chev.classList.add('open'); }
+  var payload = { date: dateKey, entries: log[dateKey] };
+  pushToAzure(payload, dateKey);
+}
+
+function exportCSV() {
+  var log = getLog();
+  var all = Object.values(log).flat();
+  if (!all.length) return;
+  var headers = ['Date','Member','Location','ProjectID','Shift','Hours','Pay','Notes'];
+  var rows = all.map(function(e) { return [e.date, e.name, e.location, e.locationId||'', e.shift, e.hours, e.pay, e.notes||'']; });
+  var csv = [headers].concat(rows).map(function(r) { return r.map(function(v) { return '"' + String(v).replace(/"/g, '""')+'"'; }).join(','); }).join('\n');
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+  a.download = 'labor-log.csv'; a.click();
+}
+
+// ── Admin / Lock ──────────────────────────────────────────────
+var pinBuffer = '';
+
+// (duplicate removed)
+// (duplicate removed)
+// (duplicate removed)
+// (duplicate removed)
+// (duplicate updatePinDots removed)
+function toggleAdminPanel() {
+  var panel = document.getElementById('admin-panel');
+  if (panel.style.display === 'none') { showAdminPanel(); }
+  else {
+    panel.style.display = 'none'; adminUnlocked = false;
+    document.getElementById('lock-btn').classList.remove('unlocked');
+    document.getElementById('lock-btn').innerHTML = '&#128274;';
+  }
+}
+function showAdminPanel() {
+  var panel = document.getElementById('admin-panel');
+  panel.style.display = 'block';
+  // URL managed via settings modal
+  renderAdminCrew(); renderAdminLocations();
+}
+// saveAzureUrl — URL managed via settings modal
+function renderAdminCrew() {
+  var crew = getCrew();
+  var list = document.getElementById('admin-crew-list');
+  list.innerHTML = crew.map(function(m, i) {
+    return '<div class="admin-item">'
+      + '<span class="admin-item-name">' + m.name + '</span>'
+      + '<input class="admin-rate-edit" type="number" value="' + m.rate + '" onchange="adminUpdateRate(' + i + ', this.value)" />'
+      + '<button class="admin-rm" onclick="adminRemoveMember(' + i + ')" title="Remove">×</button>'
+      + '</div>';
+  }).join('') || '<div style="font-size:12px;color:var(--text3);padding:4px 0">No team members yet.</div>';
+}
+function renderAdminLocations() {
+  var projects = getLaborProjects();
+  var defLoc = getDefaultLoc();
+  var list = document.getElementById('admin-loc-list');
+  list.innerHTML = projects.map(function(p, i) {
+    var isDefault = p.name === defLoc;
+    var idTag = p.id ? ' <span style="font-size:10px;color:var(--text3)">(' + p.id + ')</span>' : '';
+    return '<div class="admin-item">'
+      + '<input type="radio" class="loc-default-radio" name="default-loc" value="' + p.name + '" ' + (isDefault ? 'checked' : '') + ' onchange="adminSetDefault(\'' + p.name + '\')" title="Set as default" />'
+      + '<span class="admin-item-name">' + p.name + idTag + (isDefault ? ' <span style="font-size:10px;color:var(--green)">(default)</span>' : '') + '</span>'
+      + '<button class="admin-rm" onclick="adminRemoveLocation(' + i + ')" title="Remove">×</button>'
+      + '</div>';
+  }).join('') || '<div style="font-size:12px;color:var(--text3);padding:4px 0">No locations yet.</div>';
+}
+function adminSetDefault(loc) {
+  setDefaultLoc(loc);
+  renderAdminLocations();
+  rebuildCrewRows();
+}
+function adminUpdateRate(idx, val) { var crew = getCrew(); crew[idx].rate = parseFloat(val)||0; saveCrew(crew); }
+function adminRemoveMember(idx) { var crew = getCrew(); crew.splice(idx,1); saveCrew(crew); renderAdminCrew(); rebuildCrewRows(); }
+function adminAddMember() {
+  var name = document.getElementById('new-member-name').value.trim();
+  var rate = parseFloat(document.getElementById('new-member-rate').value) || 0;
+  if (!name) return;
+  var crew = getCrew(); crew.push({ name: name, rate: rate }); saveCrew(crew);
+  document.getElementById('new-member-name').value = '';
+  document.getElementById('new-member-rate').value = '';
+  renderAdminCrew(); rebuildCrewRows();
+}
+function adminRemoveLocation(idx) {
+  var projects = getLaborProjects(); projects.splice(idx,1); saveLaborProjects(projects);
+  renderAdminLocations(); rebuildCrewRows();
+}
+function adminAddLocation() {
+  var name = document.getElementById('new-loc-name').value.trim();
+  var id = document.getElementById('new-loc-id').value.trim();
+  if (!name) return;
+  var projects = getLaborProjects(); projects.push({ name: name, id: id }); saveLaborProjects(projects);
+  document.getElementById('new-loc-name').value = '';
+  document.getElementById('new-loc-id').value = '';
+  renderAdminLocations(); rebuildCrewRows();
+}
+
+// ── Init ──────────────────────────────────────────────────────
+rebuildCrewRows();
+renderLog();
+updateSyncBarFromMeta();
+
+/* ── END LABOR ENTRY ── */
+/* ============================================================
+   RECEIPT ENTRY — embedded in dashboard
+   ============================================================ */
+let selectedReceiptProject = null;
+let receiptPendingRetry = null;
+
+function getReceiptLog() { try { return JSON.parse(localStorage.getItem('receiptLog') || '[]'); } catch(e) { return []; } }
+function saveReceiptLog(r) { localStorage.setItem('receiptLog', JSON.stringify(r)); }
+function getReceiptUrl() { return DASHBOARD_DATA_URL || localStorage.getItem('azureFnUrl') || ''; }
+
+
+function initLaborTab() {
+  // Re-init the labor entry date to today if not set
+  var dateInput = document.getElementById('date-input');
+  if (dateInput && !dateInput.value) {
+    var today = new Date();
+    var y = today.getFullYear();
+    var m = String(today.getMonth()+1).padStart(2,'0');
+    var d = String(today.getDate()).padStart(2,'0');
+    dateInput.value = y + '-' + m + '-' + d;
+  }
+  rebuildCrewRows();
+  renderLog();
+}
+
+function initReceiptTab() {
+  const today = new Date();
+  const y = today.getFullYear();
+  const m = String(today.getMonth()+1).padStart(2,'0');
+  const d = String(today.getDate()).padStart(2,'0');
+  const dateEl = $('r-date');
+  if (dateEl && !dateEl.value) dateEl.value = y + '-' + m + '-' + d;
+  const urlEl = $('r-flow-url');
+  if (urlEl && !urlEl.value) urlEl.value = getReceiptUrl();
+  buildReceiptPills();
+  renderReceiptList();
+}
+
+function buildReceiptPills() {
+  const ids = getProjectIds();
+  const container = $('receipt-project-pills');
+  if (!container) return;
+  container.innerHTML = ids.map(function(id) {
+    return '<button class="receipt-pill' + (selectedReceiptProject === id ? ' active' : '') + '" onclick="selectReceiptProject(\'' + id + '\')">' + id + '</button>';
+  }).join('');
+}
+
+function selectReceiptProject(id) {
+  selectedReceiptProject = id;
+  buildReceiptPills();
+}
+
+function saveReceiptUrl() {
+  const val = $('r-flow-url').value.trim();
+  localStorage.setItem('receiptFlowUrl', val);
+  const hint = $('r-url-hint');
+  if (!hint) return;
+  hint.style.color = 'var(--accent)';
+  hint.textContent = val ? 'URL saved.' : 'URL cleared.';
+  setTimeout(function() { hint.textContent = ''; }, 2000);
+}
+
+function saveReceiptEntry() {
+  const date = $('r-date').value;
+  const vendor = $('r-vendor').value.trim();
+  const amount = parseFloat($('r-amount').value) || 0;
+  const desc = $('r-desc').value.trim();
+  const notes = $('r-notes').value.trim();
+
+  if (!selectedReceiptProject) { alert('Please select a project.'); return; }
+  if (!vendor) { alert('Vendor is required.'); return; }
+  if (!amount) { alert('Amount is required.'); return; }
+  if (!date) { alert('Date is required.'); return; }
+
+  const entry = {
+    id: Date.now(),
+    date: date,
+    projectId: selectedReceiptProject,
+    vendor: vendor,
+    description: desc,
+    amount: amount,
+    notes: notes,
+    status: 'pending',
+    savedAt: new Date().toISOString()
+  };
+
+  const log = getReceiptLog();
+  log.unshift(entry);
+  saveReceiptLog(log);
+
+  // Reset form — keep date and project selection for quick multi-entry
+  $('r-vendor').value = '';
+  $('r-amount').value = '';
+  $('r-desc').value = '';
+  $('r-notes').value = '';
+  // Scroll to top of receipt page for next entry
+  var page = $('page-receipt');
+  if (page) page.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  renderReceiptList();
+  syncReceiptEntry(entry);
+}
+
+async function syncReceiptEntry(entry) {
+  const url = getReceiptUrl();
+  if (!url) {
+    setReceiptSyncBar('pending', 'Saved locally — add Power Automate URL below to sync');
+    return;
+  }
+  setReceiptSyncBar('syncing', 'Syncing…');
+  setReceiptStatus(entry.id, 'syncing');
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'receipt', date: entry.date, projectId: entry.projectId, vendor: entry.vendor, description: entry.description, amount: entry.amount, notes: entry.notes })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    setReceiptStatus(entry.id, 'synced');
+    setReceiptSyncBar('synced', 'Synced ✔ ' + new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }));
+    receiptPendingRetry = null;
+  } catch(err) {
+    setReceiptStatus(entry.id, 'failed');
+    setReceiptSyncBar('failed', 'Sync failed');
+    receiptPendingRetry = entry;
+  }
+}
+
+async function retryReceiptSync() {
+  const log = getReceiptLog();
+  const failed = log.filter(function(r) { return r.status === 'failed' || r.status === 'pending'; });
+  for (const r of failed) await syncReceiptEntry(r);
+}
+
+function setReceiptStatus(id, status) {
+  const log = getReceiptLog();
+  const idx = log.findIndex(function(r) { return r.id === id; });
+  if (idx !== -1) { log[idx].status = status; saveReceiptLog(log); }
+  renderReceiptList();
+}
+
+function setReceiptSyncBar(state, text) {
+  const dot = $('r-sync-dot');
+  const textEl = $('r-sync-text');
+  const retryBtn = $('r-retry-btn');
+  if (!dot || !textEl) return;
+  const colors = { synced: 'var(--accent)', syncing: 'var(--amber)', failed: 'var(--red)', pending: 'var(--muted)' };
+  dot.style.background = colors[state] || 'var(--muted)';
+  textEl.textContent = text || '';
+  if (retryBtn) retryBtn.style.display = state === 'failed' ? 'block' : 'none';
+}
+
+function renderReceiptList() {
+  const log = getReceiptLog();
+  const container = $('r-receipt-list');
+  if (!container) return;
+  if (!log.length) {
+    container.innerHTML = '<div style="text-align:center;padding:24px 0;color:var(--muted);font-size:13px">No receipts saved yet.</div>';
+    return;
+  }
+  container.innerHTML = log.map(function(r) {
+    return '<div class="receipt-item">'
+      + '<div style="flex:1;min-width:0">'
+      + '<div class="receipt-vendor">' + r.vendor + '</div>'
+      + '<div class="receipt-meta">' + r.date + ' · ' + r.projectId + (r.description ? ' · ' + r.description : '') + '</div>'
+      + '</div>'
+      + '<span class="receipt-amount">$' + r.amount.toFixed(2) + '</span>'
+      + '<span class="receipt-badge ' + (r.status||'pending') + '">' + (r.status||'pending') + '</span>'
+      + '<button class="receipt-del" onclick="deleteReceiptEntry(' + r.id + ')">×</button>'
+      + '</div>';
+  }).join('');
+  const hasFailed = log.some(function(r) { return r.status === 'failed'; });
+  const hasPending = log.some(function(r) { return r.status === 'pending'; });
+  if (hasFailed) setReceiptSyncBar('failed', 'Some receipts failed — tap Retry');
+  else if (hasPending) setReceiptSyncBar('pending', 'Some receipts pending sync');
+  else setReceiptSyncBar('synced', 'All synced ✔');
+}
+
+function deleteReceiptEntry(id) {
+  const log = getReceiptLog().filter(function(r) { return r.id !== id; });
+  saveReceiptLog(log);
+  renderReceiptList();
+}
+
+function exportReceiptCSV() {
+  const log = getReceiptLog();
+  if (!log.length) { alert('No receipts to export.'); return; }
+  const headers = ['Date','ProjectID','Vendor','Description','Amount','Notes','Status'];
+  const rows = log.map(function(r) { return [r.date, r.projectId, r.vendor, r.description||'', r.amount, r.notes||'', r.status||'']; });
+  const csv = [headers,...rows].map(function(row) { return row.map(function(v) { return '"'+String(v).replace(/"/g,'""')+'"'; }).join(','); }).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+  a.download = 'receipts-' + new Date().toISOString().split('T')[0] + '.csv';
+  a.click();
+}
+
+
+/* ============================================================
+   PLUS DROPDOWN MENU
+   ============================================================ */
+function togglePlusMenu(e) {
+  e.stopPropagation();
+  const menu = $('plus-menu');
+  const btn = $('plus-tab-btn');
+  if (!menu || !btn) return;
+
+  // Position the menu relative to the + button
+  const rect = btn.getBoundingClientRect();
+  menu.style.position = 'fixed';
+  menu.style.top = (rect.bottom + 4) + 'px';
+  menu.style.right = (window.innerWidth - rect.right) + 'px';
+
+  menu.classList.toggle('open');
+}
+
+function closePlusMenu() {
+  const menu = $('plus-menu');
+  if (menu) menu.classList.remove('open');
+}
+
+// Close dropdown when clicking anywhere else
+document.addEventListener('click', function(e) {
+  const menu = $('plus-menu');
+  const btn = $('plus-tab-btn');
+  if (menu && btn && !menu.contains(e.target) && e.target !== btn) {
+    menu.classList.remove('open');
+  }
+});
+
+function submitOnboard() {
+  const id = $('ob-id').value.trim();
+  const name = $('ob-name').value.trim();
+  const status = $('ob-status');
+
+  if (!id || !name) {
+    status.className = 'ob-status error';
+    status.textContent = 'Project ID and name are required.';
+    return;
+  }
+
+  const ids = getProjectIds();
+  if (ids.includes(id)) {
+    status.className = 'ob-status error';
+    status.textContent = 'A project with ID "' + id + '" already exists.';
+    return;
+  }
+
+  ids.push(id);
+  saveProjectIds(ids);
+  buildTabBar();
+
+  status.className = 'ob-status success';
+  status.textContent = 'Project tab added. Add the matching row to Projects.xlsx on OneDrive (ProjectID, Name, StartDate, Weeks, Purchase Price, RenoBudget, TargetSalePrice) so the dashboard can pull its numbers.';
+
+  setTimeout(function() { switchTab(id); }, 1400);
+}
+
+/* ============================================================
+   INIT
+   ============================================================ */
+buildTabBar();
+const initialIds = getProjectIds();
+if (initialIds.length) switchTab(initialIds[0]);
+
 </script>
 </body>
 </html>

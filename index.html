@@ -655,9 +655,11 @@ var adminUnlocked = false;
 var lastSyncedPayload = null;
 
 var today = new Date();
-var todayInput = document.getElementById('today-date');
-todayInput.value = today.toISOString().split('T')[0];
-function getDateStr() { return todayInput.value || today.toISOString().split('T')[0]; }
+var todayInput = null; // initialized when labor tab opens
+function getDateStr() {
+  todayInput = todayInput || document.getElementById('today-date');
+  return (todayInput && todayInput.value) ? todayInput.value : today.toISOString().split('T')[0];
+}
 
 function getLog()      { try { var r = localStorage.getItem('laborLog'); return r ? JSON.parse(r) : {}; } catch(e) { return {}; } }
 function saveLog(log)  { localStorage.setItem('laborLog', JSON.stringify(log)); }
@@ -716,7 +718,7 @@ function updateSyncBarFromMeta() {
   if (entry.status === 'failed')  setSyncState('failed',  'Sync failed — tap Retry');
 }
 
-todayInput.addEventListener('change', function() { updateSyncBarFromMeta(); renderLog(); });
+// todayInput change listener added in initLaborTab()
 
 async function pushToAzure(payload, dateKey) {
   var url = getAzureUrl();
@@ -1162,10 +1164,8 @@ function adminAddLocation() {
   renderAdminLocations(); rebuildCrewRows();
 }
 
-// ── Init ──────────────────────────────────────────────────────
-rebuildCrewRows();
-renderLog();
-updateSyncBarFromMeta();
+// ── Init — only runs when labor tab is active ─────────────────
+// rebuildCrewRows/renderLog called via initLaborTab() when tab is opened
 
 
 
@@ -1945,9 +1945,11 @@ var adminUnlocked = false;
 var lastSyncedPayload = null;
 
 var today = new Date();
-var todayInput = document.getElementById('today-date');
-todayInput.value = today.toISOString().split('T')[0];
-function getDateStr() { return todayInput.value || today.toISOString().split('T')[0]; }
+var todayInput = null; // initialized when labor tab opens
+function getDateStr() {
+  todayInput = todayInput || document.getElementById('today-date');
+  return (todayInput && todayInput.value) ? todayInput.value : today.toISOString().split('T')[0];
+}
 
 function getLog()      { try { var r = localStorage.getItem('laborLog'); return r ? JSON.parse(r) : {}; } catch(e) { return {}; } }
 function saveLog(log)  { localStorage.setItem('laborLog', JSON.stringify(log)); }
@@ -2006,7 +2008,7 @@ function updateSyncBarFromMeta() {
   if (entry.status === 'failed')  setSyncState('failed',  'Sync failed — tap Retry');
 }
 
-todayInput.addEventListener('change', function() { updateSyncBarFromMeta(); renderLog(); });
+// todayInput change listener added in initLaborTab()
 
 async function pushToAzure(payload, dateKey) {
   var url = getAzureUrl();
@@ -2430,10 +2432,8 @@ function adminAddLocation() {
   renderAdminLocations(); rebuildCrewRows();
 }
 
-// ── Init ──────────────────────────────────────────────────────
-rebuildCrewRows();
-renderLog();
-updateSyncBarFromMeta();
+// ── Init — only runs when labor tab is active ─────────────────
+// rebuildCrewRows/renderLog called via initLaborTab() when tab is opened
 
 /* ── END LABOR ENTRY ── */
 /* ============================================================
@@ -2448,17 +2448,21 @@ function getReceiptUrl() { return DASHBOARD_DATA_URL || localStorage.getItem('az
 
 
 function initLaborTab() {
-  // Re-init the labor entry date to today if not set
-  var dateInput = document.getElementById('date-input');
-  if (dateInput && !dateInput.value) {
-    var today = new Date();
-    var y = today.getFullYear();
-    var m = String(today.getMonth()+1).padStart(2,'0');
-    var d = String(today.getDate()).padStart(2,'0');
-    dateInput.value = y + '-' + m + '-' + d;
+  // Wire up todayInput now that the labor page DOM exists
+  todayInput = document.getElementById('today-date');
+  if (todayInput) {
+    if (!todayInput.value) {
+      var t = new Date();
+      todayInput.value = t.getFullYear() + '-' + String(t.getMonth()+1).padStart(2,'0') + '-' + String(t.getDate()).padStart(2,'0');
+    }
+    if (!todayInput._listenerAdded) {
+      todayInput.addEventListener('change', function() { updateSyncBarFromMeta(); renderLog(); });
+      todayInput._listenerAdded = true;
+    }
   }
   rebuildCrewRows();
   renderLog();
+  updateSyncBarFromMeta();
 }
 
 function initReceiptTab() {

@@ -687,7 +687,7 @@ function getProjectIdByName(name) {
   var match = projects.find(function(p) { return p.name === name; });
   return match ? match.id : '';
 }
-function getAzureUrl()   { return localStorage.getItem('azureFnUrl') || ''; }
+function getAzureUrl()   { return localStorage.getItem('azureFnUrl') || DEFAULT_LABOR_URL; }
 function setAzureUrl(v)  { localStorage.setItem('azureFnUrl', v); }
 
 var state = {};
@@ -1228,7 +1228,9 @@ function adminAddLocation() {
    CONFIG
    ============================================================ */
 // Paste the "Get-Dashboard-Data" Power Automate HTTP URL here (without the &projectId= part)
-let DASHBOARD_DATA_URL = localStorage.getItem('dashboardDataUrl') || '';
+const DEFAULT_DASHBOARD_URL = 'https://defaultc6433947b3114ad1a0be4d8d90454b.c9.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/4feeb47b9cfd464a9cb26bfaec781f91/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=vOOJZq9Q3TD797xGY8iWu4V9yv95FScA_SaPSYXidfQ';
+const DEFAULT_LABOR_URL = 'https://defaultc6433947b3114ad1a0be4d8d90454b.c9.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/a18f7fa075be42e3846963c4346e7e53/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=Y3g_FMa0DQ9QJ2CcNQHLAa0NfEd6rHvjzW336QLYPM8';
+let DASHBOARD_DATA_URL = localStorage.getItem('dashboardDataUrl') || DEFAULT_DASHBOARD_URL;
 
 function openSettings() {
   $('settings-url').value = DASHBOARD_DATA_URL;
@@ -2048,7 +2050,7 @@ function getProjectIdByName(name) {
   var match = projects.find(function(p) { return p.name === name; });
   return match ? match.id : '';
 }
-function getAzureUrl()   { return localStorage.getItem('azureFnUrl') || ''; }
+function getAzureUrl()   { return localStorage.getItem('azureFnUrl') || DEFAULT_LABOR_URL; }
 function setAzureUrl(v)  { localStorage.setItem('azureFnUrl', v); }
 
 var state = {};

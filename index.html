@@ -1274,13 +1274,54 @@ function daysBetween(a, b) {
 }
 
 /* ============================================================
-   PROJECT REGISTRY (which tabs exist) — stored locally, list of project IDs
+   PROJECT REGISTRY — now sourced from Projects table in Excel
+   via Get-Dashboard-Data's allProjects field. Cached locally
+   for fast loads, but Excel is the source of truth.
    ============================================================ */
+let cloudProjects = null; // raw array from API: [{ProjectID, Name, StartDate, Weeks, ...}]
+
 function getProjectIds() {
-  try { var s = localStorage.getItem('dashboardProjectIds'); return s ? JSON.parse(s) : ['8294', '1524']; }
-  catch(e) { return ['8294', '1524']; }
+  if (cloudProjects && cloudProjects.length) {
+    return cloudProjects.map(function(p) { return p.ProjectID; });
+  }
+  try {
+    var s = localStorage.getItem('allProjectsCache');
+    if (s) {
+      var parsed = JSON.parse(s);
+      if (Array.isArray(parsed) && parsed.length) return parsed.map(function(p) { return p.ProjectID; });
+    }
+  } catch(e) {}
+  return ['8294', '1524'];
 }
-function saveProjectIds(ids) { localStorage.setItem('dashboardProjectIds', JSON.stringify(ids)); }
+function saveProjectIds(ids) { /* no-op — project list now comes from Excel, not localStorage */ }
+
+async function fetchAllProjects(forceRefresh) {
+  if (!forceRefresh) {
+    try {
+      var cached = localStorage.getItem('allProjectsCache');
+      if (cached) {
+        var parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length) {
+          cloudProjects = parsed;
+        }
+      }
+    } catch(e) {}
+  }
+  if (!DASHBOARD_DATA_URL) return cloudProjects;
+  try {
+    const sep = DASHBOARD_DATA_URL.includes('?') ? '&' : '?';
+    const res = await fetch(DASHBOARD_DATA_URL + sep + 'projectId=__all__');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (Array.isArray(data.allProjects) && data.allProjects.length) {
+      cloudProjects = data.allProjects;
+      localStorage.setItem('allProjectsCache', JSON.stringify(cloudProjects));
+    }
+  } catch(err) {
+    console.warn('Failed to fetch project list:', err);
+  }
+  return cloudProjects;
+}
 
 function getCache(projectId) {
   try {
@@ -1333,8 +1374,13 @@ function isProjectSold(projectId) {
   return !!ov.sale;
 }
 function deleteProjectTab(projectId) {
-  const ids = getProjectIds().filter(function(id) { return id !== projectId; });
-  saveProjectIds(ids);
+  // Note: this only hides the tab locally for this session/device.
+  // The row still exists in Projects.xlsx, so it will reappear on next cloud refresh
+  // unless removed from Excel directly.
+  if (cloudProjects) {
+    cloudProjects = cloudProjects.filter(function(p) { return p.ProjectID !== projectId; });
+    localStorage.setItem('allProjectsCache', JSON.stringify(cloudProjects));
+  }
   localStorage.removeItem('dashCache_' + projectId);
   localStorage.removeItem('dashOverrides_' + projectId);
   var pg = $('page-' + projectId);
@@ -1388,10 +1434,14 @@ let activeTab = null;
    CO = Other contract (internal only)
    ============================================================ */
 function getProjectType(projectId) {
-  // First check Projects.xlsx data via cache
+  if (cloudProjects) {
+    const match = cloudProjects.find(function(p) { return p.ProjectID === projectId; });
+    if (match && match.Type) return match.Type;
+  }
+  // Fall back to per-project cache
   const cache = getCache(projectId);
   if (cache && cache.project && cache.project.Type) return cache.project.Type;
-  // Fall back to locally stored type from onboarding
+  // Fall back to locally stored type from onboarding (legacy)
   const ov = getOverrides(projectId);
   return ov.projectType || 'FF';
 }
@@ -2836,7 +2886,7 @@ function renderArchives() {
   }).join('');
 }
 
-function submitOnboard() {
+async function submitOnboard() {
   const id = $('ob-id').value.trim();
   const name = $('ob-name').value.trim();
   const status = $('ob-status');
@@ -2855,22 +2905,59 @@ function submitOnboard() {
   }
 
   const projectType = $('ob-type') ? $('ob-type').value : 'FF';
+  const startDate = $('ob-start') ? $('ob-start').value : '';
+  const weeks = $('ob-weeks') ? $('ob-weeks').value : '';
+  const purchase = $('ob-purchase') ? $('ob-purchase').value : '';
+  const budget = $('ob-budget') ? $('ob-budget').value : '';
+  const target = $('ob-target') ? $('ob-target').value : '';
 
-  ids.push(id);
-  saveProjectIds(ids);
+  const url = getAzureUrl();
+  if (!url) {
+    status.className = 'ob-status error';
+    status.textContent = 'No Labor-Tracker URL configured. Add it in Settings.';
+    return;
+  }
 
-  // Save project type locally
-  const ov = getOverrides(id);
-  ov.projectType = projectType;
-  saveOverrides(id, ov);
+  const submitBtn = document.querySelector('.ob-submit');
+  if (submitBtn) submitBtn.disabled = true;
+  status.className = 'ob-status';
+  status.style.display = 'block';
+  status.style.background = 'rgba(255,255,255,0.04)';
+  status.style.color = 'var(--muted)';
+  status.textContent = 'Adding project…';
 
-  buildTabBar();
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'project',
+        projectId: id,
+        name: name,
+        startDate: startDate,
+        weeks: weeks,
+        purchasePrice: purchase,
+        renoBudget: budget,
+        targetSalePrice: target,
+        projectType: projectType
+      })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
 
-  const typeLabel = { FF: 'Fix & Flip', WT: 'Welltower', CO: 'Contract' }[projectType] || projectType;
-  status.className = 'ob-status success';
-  status.textContent = 'Project tab added (' + typeLabel + '). Add the matching row to Projects.xlsx on OneDrive with Type: ' + projectType + '.';
+    await fetchAllProjects(true);
+    buildTabBar();
 
-  setTimeout(function() { switchTab(id); }, 1400);
+    const typeLabel = { FF: 'Fix & Flip', WT: 'Welltower', CO: 'Contract' }[projectType] || projectType;
+    status.className = 'ob-status success';
+    status.textContent = 'Project added (' + typeLabel + '). Milestones populated automatically.';
+
+    setTimeout(function() { switchTab(id); }, 1000);
+  } catch(err) {
+    status.className = 'ob-status error';
+    status.textContent = 'Failed to add project: ' + err.message;
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+  }
 }
 
 /* ============================================================
@@ -2929,9 +3016,21 @@ function submitOnboard() {
 })();
 
 
+// Build tab bar immediately from cache (fast first paint), then refresh from cloud
 buildTabBar();
 const initialIds = getProjectIds();
 if (initialIds.length) switchTab(initialIds[0]);
+
+fetchAllProjects(true).then(function() {
+  buildTabBar();
+  // If the currently active tab no longer exists or visibility changed, re-resolve
+  const visible = getVisibleProjectIds();
+  if (!activeTab || (visible.length && !visible.includes(activeTab) && activeTab.indexOf('__') !== 0)) {
+    if (visible.length) switchTab(visible[0]);
+  } else if (activeTab && activeTab.indexOf('__') !== 0) {
+    reorderTabs();
+  }
+});
 
 </script>
 </body>

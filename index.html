@@ -348,6 +348,8 @@
     <input class="ob-input" id="settings-url" placeholder="https://...invoke?api-version=1&sp=...&sig=..." style="margin-bottom:10px" />
     <div class="ob-label" style="margin-bottom:4px">Labor-Tracker URL (for labor + receipts)</div>
     <input class="ob-input" id="settings-labor-url" placeholder="https://...invoke?api-version=1&sp=...&sig=..." style="margin-bottom:12px" />
+    <div class="ob-label" style="margin-bottom:4px">Anthropic API Key (for receipt scanning)</div>
+    <input class="ob-input" id="settings-anthropic-key" type="password" placeholder="sk-ant-..." style="margin-bottom:12px" />
     <div style="display:flex;gap:8px;justify-content:flex-end">
       <button onclick="closeSettings()" style="background:none;border:1px solid var(--border2);border-radius:8px;padding:8px 16px;color:var(--text);cursor:pointer;font-size:13px">Cancel</button>
       <button onclick="saveSettings()" style="background:var(--accent);border:none;border-radius:8px;padding:8px 16px;color:#0c0d10;cursor:pointer;font-size:13px;font-weight:500">Save</button>
@@ -519,6 +521,15 @@
   </div>
 
   <div style="max-width:520px;margin:0 auto">
+
+    <!-- SCAN RECEIPT -->
+    <div style="margin-bottom:18px">
+      <button onclick="triggerReceiptScan()" id="scan-receipt-btn" style="width:100%;padding:12px;border-radius:10px;border:1px dashed var(--border2);background:var(--surf2);color:var(--text2);font-family:'DM Mono',monospace;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;letter-spacing:0.04em;transition:all .15s">
+        <span style="font-size:18px">📷</span> Scan Receipt
+      </button>
+      <input type="file" id="receipt-file-input" accept="image/*" capture="environment" style="display:none" onchange="handleReceiptImage(this)" />
+      <div id="scan-status" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);text-align:center;margin-top:8px;min-height:16px"></div>
+    </div>
 
     <!-- PROJECT PILLS -->
     <div class="field" style="margin-bottom:14px">
@@ -1227,6 +1238,8 @@ function openSettings() {
   $('settings-url').value = DASHBOARD_DATA_URL;
   const laborUrlEl = $('settings-labor-url');
   if (laborUrlEl) laborUrlEl.value = localStorage.getItem('azureFnUrl') || '';
+  const anthropicEl = $('settings-anthropic-key');
+  if (anthropicEl) anthropicEl.value = localStorage.getItem('anthropicApiKey') || '';
   $('settings-modal').style.display = 'flex';
 }
 function closeSettings() { $('settings-modal').style.display = 'none'; }
@@ -1236,6 +1249,8 @@ function saveSettings() {
   localStorage.setItem('dashboardDataUrl', val);
   const laborVal = $('settings-labor-url') ? $('settings-labor-url').value.trim() : '';
   if (laborVal) localStorage.setItem('azureFnUrl', laborVal);
+  const anthropicVal = $('settings-anthropic-key') ? $('settings-anthropic-key').value.trim() : '';
+  if (anthropicVal) localStorage.setItem('anthropicApiKey', anthropicVal);
   closeSettings();
   if (activeTab && activeTab !== '__onboard' && activeTab !== '__receipt' && activeTab !== '__labor') loadProject(activeTab, true);
 }
@@ -2817,8 +2832,113 @@ function exportReceiptCSV() {
 
 
 /* ============================================================
-   PLUS DROPDOWN MENU
+   RECEIPT OCR — Anthropic Vision API
    ============================================================ */
+function triggerReceiptScan() {
+  const apiKey = localStorage.getItem('anthropicApiKey');
+  if (!apiKey) {
+    alert('Add your Anthropic API key in Settings (⚙️) to use receipt scanning.');
+    return;
+  }
+  $('receipt-file-input').click();
+}
+
+async function handleReceiptImage(input) {
+  if (!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  const scanStatus = $('scan-status');
+  const scanBtn = $('scan-receipt-btn');
+
+  scanStatus.textContent = 'Reading receipt…';
+  scanStatus.style.color = 'var(--amber)';
+  scanBtn.disabled = true;
+  scanBtn.style.opacity = '0.6';
+
+  try {
+    // Convert image to base64
+    const base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+    const mediaType = file.type || 'image/jpeg';
+    const apiKey = localStorage.getItem('anthropicApiKey');
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 500,
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: { type: 'base64', media_type: mediaType, data: base64 }
+            },
+            {
+              type: 'text',
+              text: 'Extract the receipt information and respond ONLY with a JSON object, no markdown, no explanation. Use this exact format: {"vendor":"store name","date":"YYYY-MM-DD","amount":00.00,"description":"brief description of main items purchased"} If you cannot determine a value, use null. For date, use today if not visible.'
+            }
+          ]
+        }]
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error?.message || 'API error ' + response.status);
+    }
+
+    const data = await response.json();
+    const text = data.content?.[0]?.text || '';
+
+    let parsed;
+    try {
+      const clean = text.replace(/```json|```/g, '').trim();
+      parsed = JSON.parse(clean);
+    } catch(e) {
+      throw new Error('Could not parse receipt data. Try again.');
+    }
+
+    // Fill in the form fields
+    if (parsed.vendor) $('r-vendor').value = parsed.vendor;
+    if (parsed.amount) $('r-amount').value = parsed.amount;
+    if (parsed.description) $('r-desc').value = parsed.description;
+    if (parsed.date) {
+      const dateEl = $('r-date');
+      if (dateEl) dateEl.value = parsed.date;
+    }
+
+    scanStatus.textContent = '✓ Receipt scanned — review and save';
+    scanStatus.style.color = 'var(--accent)';
+
+    // Clear status after 4 seconds
+    setTimeout(() => {
+      if (scanStatus.textContent.includes('scanned')) {
+        scanStatus.textContent = '';
+      }
+    }, 4000);
+
+  } catch(err) {
+    scanStatus.textContent = '✗ ' + err.message;
+    scanStatus.style.color = 'var(--red)';
+  } finally {
+    scanBtn.disabled = false;
+    scanBtn.style.opacity = '1';
+    input.value = ''; // reset so same image can be re-scanned
+  }
+}
+
+
 function togglePlusMenu(e) {
   e.stopPropagation();
   const menu = $('plus-menu');
